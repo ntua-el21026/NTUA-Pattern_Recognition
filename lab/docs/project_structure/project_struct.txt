@@ -1,0 +1,115 @@
+Parallel_Processing_Systems/
+├── a1/
+│   ├── benchmarks/
+│   │   ├── N1024_T1/
+│   │   │   ├── life_1_1024.err
+│   │   │   └── life_1_1024.out
+│   │   ├── N1024_T2/
+│   │   │   ├── life_2_1024.err
+│   │   │   └── life_2_1024.out
+│   │   ├── N1024_T4/
+│   │   │   ├── life_4_1024.err
+│   │   │   └── life_4_1024.out
+│   │   ├── N1024_T6/
+│   │   │   ├── life_6_1024.err
+│   │   │   └── life_6_1024.out
+│   │   ├── N1024_T8/
+│   │   │   ├── life_8_1024.err
+│   │   │   └── life_8_1024.out
+│   │   ├── N4096_T1/
+│   │   │   ├── life_1_4096.err
+│   │   │   └── life_1_4096.out
+│   │   ├── N4096_T2/
+│   │   │   ├── life_2_4096.err
+│   │   │   └── life_2_4096.out
+│   │   ├── N4096_T4/
+│   │   │   ├── life_4_4096.err
+│   │   │   └── life_4_4096.out
+│   │   ├── N4096_T6/
+│   │   │   ├── life_6_4096.err
+│   │   │   └── life_6_4096.out
+│   │   ├── N4096_T8/
+│   │   │   ├── life_8_4096.err
+│   │   │   └── life_8_4096.out
+│   │   ├── N64_T1/
+│   │   │   ├── life_1_64.err
+│   │   │   └── life_1_64.out
+│   │   ├── N64_T2/
+│   │   │   ├── life_2_64.err
+│   │   │   └── life_2_64.out
+│   │   ├── N64_T4/
+│   │   │   ├── life_4_64.err
+│   │   │   └── life_4_64.out
+│   │   ├── N64_T6/
+│   │   │   ├── life_6_64.err
+│   │   │   └── life_6_64.out
+│   │   └── N64_T8/
+│   │       ├── life_8_64.err
+│   │       └── life_8_64.out
+│   ├── diagrams/
+│   │   ├── diagrams.py
+│   │   ├── results_full.txt
+│   │   ├── speedup_N1024.png
+│   │   ├── speedup_N4096.png
+│   │   ├── speedup_N64.png
+│   │   ├── time_N1024.png
+│   │   ├── time_N4096.png
+│   │   └── time_N64.png
+│   ├── docs/
+│   │   ├── askisi1-2025-2026.pdf
+│   │   └── pps_exercises_2025_2026.pdf
+│   ├── game_of_life.c
+│   ├── life_par
+│   ├── life_par.c
+│   ├── life_par.err
+│   ├── life_par.out
+│   ├── make_on_queue.sh
+│   ├── Makefile
+│   ├── makejob.err
+│   ├── makejob.out
+│   └── run_on_queue.sh
+├── a2/
+│   └── docs/
+├── a3/
+│   └── docs/
+├── a4/
+│   └── docs/
+│       └── docs/
+├── a5/
+├── docs/
+│   ├── misc/
+│   │   ├── File transfers.txt
+│   │   ├── Lab code.txt
+│   │   ├── pps-lab-guide_pres.pdf
+│   │   └── pps_lab_guide.pdf
+│   ├── project_structure/
+│   │   ├── project_struct.py
+│   │   └── project_struct.txt
+│   └── report/
+│       ├── final/
+│       ├── individual/
+│       │   ├── a1/
+│       │   │   ├── report_misc/
+│       │   │   │   ├── life_par.c.pdf
+│       │   │   │   ├── make_on_queue.sh.pdf
+│       │   │   │   ├── Makefile.pdf
+│       │   │   │   └── run_on_queue.sh.pdf
+│       │   │   ├── parlab05_report_a1.docx
+│       │   │   ├── parlab05_report_a1.pdf
+│       │   │   └── parlab05_report_a1_final.pdf
+│       │   ├── a2/
+│       │   ├── a3/
+│       │   ├── a4/
+│       │   └── a5/
+│       └── parlab05 - report_template.docx
+├── shell_scripts/
+│   ├── mount_orion.sh
+│   ├── push_to_orion.sh
+│   ├── push_to_scirouter.sh
+│   ├── README.md
+│   └── unmount_orion.sh
+├── .gitignore
+├── LICENSE
+└── README.md
+
+Total directories: 41, Total files: 72
