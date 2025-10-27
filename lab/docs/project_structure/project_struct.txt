@@ -12,149 +12,149 @@ Pattern_Recognition/
 │   │   │   │   ├── Step 4 - Correlation Matrices.png
 │   │   │   │   ├── Step 4 - Historiogram.png
 │   │   │   │   └── Step 5 - Scatter Plot.png
-│   │   │   ├── patrec1_03121026_03121023.ipynb
-│   │   │   ├── patrec1_03121026_03121023.py
 │   │   │   └── patrec1_03121026_03121023_report.docx
-│   │   └── material/
-│   │       ├── pr_lab2_data/
-│   │       │   ├── digits/
-│   │       │   │   ├── eight1.wav
-│   │       │   │   ├── eight10.wav
-│   │       │   │   ├── eight11.wav
-│   │       │   │   ├── eight12.wav
-│   │       │   │   ├── eight13.wav
-│   │       │   │   ├── eight14.wav
-│   │       │   │   ├── eight15.wav
-│   │       │   │   ├── eight2.wav
-│   │       │   │   ├── eight3.wav
-│   │       │   │   ├── eight4.wav
-│   │       │   │   ├── eight5.wav
-│   │       │   │   ├── eight6.wav
-│   │       │   │   ├── eight8.wav
-│   │       │   │   ├── eight9.wav
-│   │       │   │   ├── five1.wav
-│   │       │   │   ├── five10.wav
-│   │       │   │   ├── five11.wav
-│   │       │   │   ├── five12.wav
-│   │       │   │   ├── five13.wav
-│   │       │   │   ├── five14.wav
-│   │       │   │   ├── five15.wav
-│   │       │   │   ├── five2.wav
-│   │       │   │   ├── five3.wav
-│   │       │   │   ├── five4.wav
-│   │       │   │   ├── five5.wav
-│   │       │   │   ├── five6.wav
-│   │       │   │   ├── five7.wav
-│   │       │   │   ├── five8.wav
-│   │       │   │   ├── five9.wav
-│   │       │   │   ├── four1.wav
-│   │       │   │   ├── four10.wav
-│   │       │   │   ├── four11.wav
-│   │       │   │   ├── four12.wav
-│   │       │   │   ├── four13.wav
-│   │       │   │   ├── four14.wav
-│   │       │   │   ├── four15.wav
-│   │       │   │   ├── four2.wav
-│   │       │   │   ├── four3.wav
-│   │       │   │   ├── four4.wav
-│   │       │   │   ├── four5.wav
-│   │       │   │   ├── four6.wav
-│   │       │   │   ├── four7.wav
-│   │       │   │   ├── four8.wav
-│   │       │   │   ├── four9.wav
-│   │       │   │   ├── nine1.wav
-│   │       │   │   ├── nine10.wav
-│   │       │   │   ├── nine11.wav
-│   │       │   │   ├── nine12.wav
-│   │       │   │   ├── nine13.wav
-│   │       │   │   ├── nine14.wav
-│   │       │   │   ├── nine15.wav
-│   │       │   │   ├── nine2.wav
-│   │       │   │   ├── nine3.wav
-│   │       │   │   ├── nine4.wav
-│   │       │   │   ├── nine5.wav
-│   │       │   │   ├── nine6.wav
-│   │       │   │   ├── nine7.wav
-│   │       │   │   ├── nine8.wav
-│   │       │   │   ├── nine9.wav
-│   │       │   │   ├── one1.wav
-│   │       │   │   ├── one10.wav
-│   │       │   │   ├── one11.wav
-│   │       │   │   ├── one12.wav
-│   │       │   │   ├── one13.wav
-│   │       │   │   ├── one14.wav
-│   │       │   │   ├── one15.wav
-│   │       │   │   ├── one2.wav
-│   │       │   │   ├── one3.wav
-│   │       │   │   ├── one4.wav
-│   │       │   │   ├── one5.wav
-│   │       │   │   ├── one6.wav
-│   │       │   │   ├── one7.wav
-│   │       │   │   ├── one8.wav
-│   │       │   │   ├── one9.wav
-│   │       │   │   ├── seven1.wav
-│   │       │   │   ├── seven10.wav
-│   │       │   │   ├── seven11.wav
-│   │       │   │   ├── seven12.wav
-│   │       │   │   ├── seven13.wav
-│   │       │   │   ├── seven14.wav
-│   │       │   │   ├── seven15.wav
-│   │       │   │   ├── seven2.wav
-│   │       │   │   ├── seven3.wav
-│   │       │   │   ├── seven4.wav
-│   │       │   │   ├── seven5.wav
-│   │       │   │   ├── seven6.wav
-│   │       │   │   ├── seven7.wav
-│   │       │   │   ├── seven8.wav
-│   │       │   │   ├── seven9.wav
-│   │       │   │   ├── six1.wav
-│   │       │   │   ├── six10.wav
-│   │       │   │   ├── six11.wav
-│   │       │   │   ├── six13.wav
-│   │       │   │   ├── six14.wav
-│   │       │   │   ├── six15.wav
-│   │       │   │   ├── six2.wav
-│   │       │   │   ├── six3.wav
-│   │       │   │   ├── six4.wav
-│   │       │   │   ├── six5.wav
-│   │       │   │   ├── six6.wav
-│   │       │   │   ├── six7.wav
-│   │       │   │   ├── six8.wav
-│   │       │   │   ├── six9.wav
-│   │       │   │   ├── three1.wav
-│   │       │   │   ├── three10.wav
-│   │       │   │   ├── three11.wav
-│   │       │   │   ├── three12.wav
-│   │       │   │   ├── three13.wav
-│   │       │   │   ├── three14.wav
-│   │       │   │   ├── three15.wav
-│   │       │   │   ├── three2.wav
-│   │       │   │   ├── three3.wav
-│   │       │   │   ├── three4.wav
-│   │       │   │   ├── three5.wav
-│   │       │   │   ├── three6.wav
-│   │       │   │   ├── three7.wav
-│   │       │   │   ├── three8.wav
-│   │       │   │   ├── three9.wav
-│   │       │   │   ├── two1.wav
-│   │       │   │   ├── two10.wav
-│   │       │   │   ├── two11.wav
-│   │       │   │   ├── two12.wav
-│   │       │   │   ├── two13.wav
-│   │       │   │   ├── two14.wav
-│   │       │   │   ├── two15.wav
-│   │       │   │   ├── two2.wav
-│   │       │   │   ├── two3.wav
-│   │       │   │   ├── two4.wav
-│   │       │   │   ├── two5.wav
-│   │       │   │   ├── two6.wav
-│   │       │   │   ├── two7.wav
-│   │       │   │   ├── two8.wav
-│   │       │   │   └── two9.wav
-│   │       │   ├── onetwothree1.wav
-│   │       │   └── onetwothree8.wav
-│   │       ├── 1η Εργαστηριακή Άσκηση.pdf
-│   │       └── pr_lab2_data.zip
+│   │   ├── material/
+│   │   │   ├── pr_lab2_data/
+│   │   │   │   ├── digits/
+│   │   │   │   │   ├── eight1.wav
+│   │   │   │   │   ├── eight10.wav
+│   │   │   │   │   ├── eight11.wav
+│   │   │   │   │   ├── eight12.wav
+│   │   │   │   │   ├── eight13.wav
+│   │   │   │   │   ├── eight14.wav
+│   │   │   │   │   ├── eight15.wav
+│   │   │   │   │   ├── eight2.wav
+│   │   │   │   │   ├── eight3.wav
+│   │   │   │   │   ├── eight4.wav
+│   │   │   │   │   ├── eight5.wav
+│   │   │   │   │   ├── eight6.wav
+│   │   │   │   │   ├── eight8.wav
+│   │   │   │   │   ├── eight9.wav
+│   │   │   │   │   ├── five1.wav
+│   │   │   │   │   ├── five10.wav
+│   │   │   │   │   ├── five11.wav
+│   │   │   │   │   ├── five12.wav
+│   │   │   │   │   ├── five13.wav
+│   │   │   │   │   ├── five14.wav
+│   │   │   │   │   ├── five15.wav
+│   │   │   │   │   ├── five2.wav
+│   │   │   │   │   ├── five3.wav
+│   │   │   │   │   ├── five4.wav
+│   │   │   │   │   ├── five5.wav
+│   │   │   │   │   ├── five6.wav
+│   │   │   │   │   ├── five7.wav
+│   │   │   │   │   ├── five8.wav
+│   │   │   │   │   ├── five9.wav
+│   │   │   │   │   ├── four1.wav
+│   │   │   │   │   ├── four10.wav
+│   │   │   │   │   ├── four11.wav
+│   │   │   │   │   ├── four12.wav
+│   │   │   │   │   ├── four13.wav
+│   │   │   │   │   ├── four14.wav
+│   │   │   │   │   ├── four15.wav
+│   │   │   │   │   ├── four2.wav
+│   │   │   │   │   ├── four3.wav
+│   │   │   │   │   ├── four4.wav
+│   │   │   │   │   ├── four5.wav
+│   │   │   │   │   ├── four6.wav
+│   │   │   │   │   ├── four7.wav
+│   │   │   │   │   ├── four8.wav
+│   │   │   │   │   ├── four9.wav
+│   │   │   │   │   ├── nine1.wav
+│   │   │   │   │   ├── nine10.wav
+│   │   │   │   │   ├── nine11.wav
+│   │   │   │   │   ├── nine12.wav
+│   │   │   │   │   ├── nine13.wav
+│   │   │   │   │   ├── nine14.wav
+│   │   │   │   │   ├── nine15.wav
+│   │   │   │   │   ├── nine2.wav
+│   │   │   │   │   ├── nine3.wav
+│   │   │   │   │   ├── nine4.wav
+│   │   │   │   │   ├── nine5.wav
+│   │   │   │   │   ├── nine6.wav
+│   │   │   │   │   ├── nine7.wav
+│   │   │   │   │   ├── nine8.wav
+│   │   │   │   │   ├── nine9.wav
+│   │   │   │   │   ├── one1.wav
+│   │   │   │   │   ├── one10.wav
+│   │   │   │   │   ├── one11.wav
+│   │   │   │   │   ├── one12.wav
+│   │   │   │   │   ├── one13.wav
+│   │   │   │   │   ├── one14.wav
+│   │   │   │   │   ├── one15.wav
+│   │   │   │   │   ├── one2.wav
+│   │   │   │   │   ├── one3.wav
+│   │   │   │   │   ├── one4.wav
+│   │   │   │   │   ├── one5.wav
+│   │   │   │   │   ├── one6.wav
+│   │   │   │   │   ├── one7.wav
+│   │   │   │   │   ├── one8.wav
+│   │   │   │   │   ├── one9.wav
+│   │   │   │   │   ├── seven1.wav
+│   │   │   │   │   ├── seven10.wav
+│   │   │   │   │   ├── seven11.wav
+│   │   │   │   │   ├── seven12.wav
+│   │   │   │   │   ├── seven13.wav
+│   │   │   │   │   ├── seven14.wav
+│   │   │   │   │   ├── seven15.wav
+│   │   │   │   │   ├── seven2.wav
+│   │   │   │   │   ├── seven3.wav
+│   │   │   │   │   ├── seven4.wav
+│   │   │   │   │   ├── seven5.wav
+│   │   │   │   │   ├── seven6.wav
+│   │   │   │   │   ├── seven7.wav
+│   │   │   │   │   ├── seven8.wav
+│   │   │   │   │   ├── seven9.wav
+│   │   │   │   │   ├── six1.wav
+│   │   │   │   │   ├── six10.wav
+│   │   │   │   │   ├── six11.wav
+│   │   │   │   │   ├── six13.wav
+│   │   │   │   │   ├── six14.wav
+│   │   │   │   │   ├── six15.wav
+│   │   │   │   │   ├── six2.wav
+│   │   │   │   │   ├── six3.wav
+│   │   │   │   │   ├── six4.wav
+│   │   │   │   │   ├── six5.wav
+│   │   │   │   │   ├── six6.wav
+│   │   │   │   │   ├── six7.wav
+│   │   │   │   │   ├── six8.wav
+│   │   │   │   │   ├── six9.wav
+│   │   │   │   │   ├── three1.wav
+│   │   │   │   │   ├── three10.wav
+│   │   │   │   │   ├── three11.wav
+│   │   │   │   │   ├── three12.wav
+│   │   │   │   │   ├── three13.wav
+│   │   │   │   │   ├── three14.wav
+│   │   │   │   │   ├── three15.wav
+│   │   │   │   │   ├── three2.wav
+│   │   │   │   │   ├── three3.wav
+│   │   │   │   │   ├── three4.wav
+│   │   │   │   │   ├── three5.wav
+│   │   │   │   │   ├── three6.wav
+│   │   │   │   │   ├── three7.wav
+│   │   │   │   │   ├── three8.wav
+│   │   │   │   │   ├── three9.wav
+│   │   │   │   │   ├── two1.wav
+│   │   │   │   │   ├── two10.wav
+│   │   │   │   │   ├── two11.wav
+│   │   │   │   │   ├── two12.wav
+│   │   │   │   │   ├── two13.wav
+│   │   │   │   │   ├── two14.wav
+│   │   │   │   │   ├── two15.wav
+│   │   │   │   │   ├── two2.wav
+│   │   │   │   │   ├── two3.wav
+│   │   │   │   │   ├── two4.wav
+│   │   │   │   │   ├── two5.wav
+│   │   │   │   │   ├── two6.wav
+│   │   │   │   │   ├── two7.wav
+│   │   │   │   │   ├── two8.wav
+│   │   │   │   │   └── two9.wav
+│   │   │   │   ├── onetwothree1.wav
+│   │   │   │   └── onetwothree8.wav
+│   │   │   ├── 1η Εργαστηριακή Άσκηση.pdf
+│   │   │   └── pr_lab2_data.zip
+│   │   ├── patrec1_03121026_03121023.ipynb
+│   │   └── patrec1_03121026_03121023.py
 │   ├── ex2/
 │   └── ex3/
 ├── lab_repos/
