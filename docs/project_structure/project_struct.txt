@@ -1,9 +1,13 @@
 Pattern_Recognition/
+├── docs/
+│   ├── lecture_slides/
+│   │   ├── ML_Intro.txt
+│   │   └── Speech and Language Processing - Stanford.pdf
+│   └── project_structure/
+│       ├── project_struct.py
+│       └── project_struct.txt
 ├── lab/
 │   ├── docs/
-│   │   ├── project_structure/
-│   │   │   ├── project_struct.py
-│   │   │   └── project_struct.txt
 │   │   ├── notebook_template.ipynb
 │   │   └── report_template.docx
 │   ├── ex1/
@@ -214,4 +218,4 @@ Pattern_Recognition/
 ├── LICENSE
 └── README.md
 
-Total directories: 21, Total files: 194
+Total directories: 23, Total files: 196
