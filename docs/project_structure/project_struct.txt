@@ -13,9 +13,21 @@ Pattern_Recognition/
 │   ├── ex1/
 │   │   ├── docs/
 │   │   │   ├── images/
-│   │   │   │   ├── Step 4 - Correlation Matrices.png
-│   │   │   │   ├── Step 4 - Historiogram.png
-│   │   │   │   └── Step 5 - Scatter Plot.png
+│   │   │   │   ├── Step 4 - MFCC Correlation Matrices (1).png
+│   │   │   │   ├── Step 4 - MFCC Correlation Matrices (2).png
+│   │   │   │   ├── Step 4 - MFCC Historiograms.png
+│   │   │   │   ├── Step 4 - MFSC Correlation Matrices (1).png
+│   │   │   │   ├── Step 4 - MFSC Correlation Matrices (2).png
+│   │   │   │   ├── Step 5 - Utterance-Level Scatter Plot.png
+│   │   │   │   ├── Step 6 - PCA 2D Scatter Plot.png
+│   │   │   │   ├── Step 6 - PCA 3D Scatter Plot.png
+│   │   │   │   ├── Step 7 Bonus - Accuracies Comparison.png
+│   │   │   │   ├── Step 7 Main - Best Model Confusion Matrix.png
+│   │   │   │   ├── Step 7 Main - Test Accuracies.png
+│   │   │   │   ├── Step 7 Main - Worst Model Confusion Matrix.png
+│   │   │   │   ├── Step 8 - Qualitative Comparison.png
+│   │   │   │   ├── Step 8 - Test MSE.png
+│   │   │   │   └── Step 8 - Training and Validation Curves.png
 │   │   │   └── patrec1_03121026_03121023_report.docx
 │   │   ├── material/
 │   │   │   ├── pr_lab2_data/
@@ -218,4 +230,4 @@ Pattern_Recognition/
 ├── LICENSE
 └── README.md
 
-Total directories: 23, Total files: 196
+Total directories: 23, Total files: 208
