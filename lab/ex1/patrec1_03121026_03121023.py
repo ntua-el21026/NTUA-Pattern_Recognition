@@ -2760,7 +2760,2468 @@ plt.colorbar(im2, ax=axes[1])
 plt.tight_layout()
 plt.show()
 
+"""## **Step 14 - LSTMs**
 
+---
+
+### **Step 14 — Preparatory Cell (parser, splits, scaling, dataset, loaders)**
+
+#### **Goal**
+Load MFCC sequences with `n_mfcc = 6`, apply the dataset’s default TRAIN/TEST rule, derive a stratified TRAIN/VAL split, normalize using TRAIN-only statistics, and produce ready-to-use DataLoaders that yield `(padded_seq, label, length)`.
+
+#### **Data loading & splitting**
+- **Input**: Free Spoken Digit Dataset (`recordings/*.wav`).
+- **Default TRAIN/TEST rule**: utterances whose filename id ∈ {`0,1,2,3,4`} go to **TEST**; all others form the **TRAIN-like pool**.
+- **Validation split**: from the TRAIN-like pool, build **TRAIN** and **VAL** via a stratified 80/20 split on digit labels to preserve class balance.
+
+#### **Feature extraction (MFCC)**
+- For each utterance waveform, compute MFCCs with **`n_mfcc = 6`** on short-time frames (≈30 ms window, ≈50% overlap).  
+- Each utterance becomes a variable-length sequence **`(T_i × D)`**, where **`D = 6`**.
+
+**Normalization**
+- Fit a standardization transform **only on TRAIN frames** (concatenate all TRAIN frames), then apply the same transform to **TRAIN/VAL/TEST**:  
+  $
+  x' = \frac{x - \mu_{\text{train}}}{\sigma_{\text{train}}}
+  $
+- This avoids leakage of VAL/TEST statistics into the model.
+
+#### **Dataset & loaders**
+- For each split, compute its **max sequence length** \(L_{\max}\) and **zero-pad** shorter sequences to shape **`(N, L_max, D)`**; keep a vector `length` with each item’s true frame count.
+- DataLoaders:
+  - TRAIN: `batch_size = 32`, `shuffle = True`.
+  - VAL/TEST: `batch_size = 32`, `shuffle = False`.
+
+#### **Determinism**
+- Set seeds for `numpy`, `random`, and `torch` to stabilize initialization and batching.
+
+#### **Outputs**
+- Tensors and loaders: `train_loader`, `val_loader`, `test_loader`.  
+- Shapes: batches have `x: (N, L_max, 6)`, `y: (N,)`, `length: (N,)`.
+"""
+
+# ==============================================================
+# STEP 14 — Preparatory Cell (progress-style, like Step 9)
+#   • Parser (n_mfcc=6) + default TRAIN/TEST
+#   • Stratified TRAIN/VAL (80/20)
+#   • Scaling with TRAIN-only statistics
+#   • Dataset (padding + lengths) and DataLoaders
+# ==============================================================
+
+import os, random, time
+from glob import glob
+from typing import List
+from collections import Counter
+
+import numpy as np
+import librosa
+import torch
+import torch.nn as nn
+from torch.utils.data import Dataset, DataLoader
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from tqdm.auto import tqdm
+
+# ---------------- Reproducibility ----------------
+SEED = 0
+np.random.seed(SEED)
+random.seed(SEED)
+torch.manual_seed(SEED)
+
+# ---------------- Helper: Step-9-style distribution print ----------------
+def show_distribution(labels, name):
+    counts = Counter(labels)
+    total = len(labels)
+    print(f"\n{name} distribution (total {total}):")
+    for digit in sorted(counts.keys()):
+        c = counts[digit]
+        pct = c / max(1, total)
+        print(f"  digit {digit}: {c} samples ({pct:.2%})")
+
+# ---------------- Parser definitions (with progress bars) ----------------
+def parse_free_digits(directory: str):
+    """
+    Return wavs, Fs, ids (as strings), y (digits), speakers.
+    Shows a progress bar while loading audio files.
+    """
+    files = sorted(glob(os.path.join(directory, "*.wav")))
+    if not files:
+        raise FileNotFoundError(f"No .wav files found under: {directory}")
+
+    def parse_parts(path):
+        base = os.path.basename(path)
+        stem = os.path.splitext(base)[0]   # e.g., "7_jackson_32"
+        digit, speaker, uid = stem.split("_")
+        return int(digit), speaker, uid
+
+    # Read sampling frequency from first file
+    _, Fs = librosa.load(files[0], sr=None)
+
+    wavs, ids, y, speakers = [], [], [], []
+    for f in tqdm(files, desc="Loading wav files...", leave=False):
+        d, spk, uid = parse_parts(f)
+        wav, _ = librosa.load(f, sr=None)
+        wavs.append(wav)
+        ids.append(uid)
+        y.append(d)
+        speakers.append(spk)
+
+    print(f"Total wavs: {len(wavs)}. Fs = {Fs} Hz")
+    return wavs, Fs, ids, y, speakers
+
+
+def extract_features(wavs: List[np.ndarray], n_mfcc=6, Fs=8000):
+    """
+    Compute MFCCs with 30 ms window, 50% overlap. Shows a progress bar.
+    Returns list of arrays of shape (T_i, n_mfcc).
+    """
+    window = 30 * Fs // 1000
+    step   = window // 2
+    frames = []
+    for wav in tqdm(wavs, desc="Extracting MFCC features...", leave=False):
+        M = librosa.feature.mfcc(
+            y=wav,
+            sr=Fs,
+            n_fft=window,
+            hop_length=window - step,
+            n_mfcc=n_mfcc
+        ).T
+        frames.append(M.astype(np.float32))
+    print(f"Feature extraction completed with {n_mfcc} mfccs per frame")
+    return frames
+
+
+def split_free_digits(frames, ids, speakers, labels):
+    """
+    Default split used in FSDD:
+      ids in {'0','1','2','3','4'} → TEST, else → TRAIN-like pool.
+    """
+    print("Splitting in train test split using the default dataset split")
+    X_train, y_train, spk_train = [], [], []
+    X_test,  y_test,  spk_test  = [], [], []
+    test_ids = {"0", "1", "2", "3", "4"}
+    for idx, frame, lab, spk in zip(ids, frames, labels, speakers):
+        if str(idx) in test_ids:
+            X_test.append(frame);  y_test.append(lab);  spk_test.append(spk)
+        else:
+            X_train.append(frame); y_train.append(lab); spk_train.append(spk)
+    return X_train, X_test, y_train, y_test, spk_train, spk_test
+
+
+def make_scale_fn(X_train: List[np.ndarray]):
+    """
+    Fit StandardScaler on TRAIN frames only and return a transform.
+    """
+    scaler = StandardScaler()
+    scaler.fit(np.concatenate([x for x in X_train if len(x) > 0], axis=0))
+    print("Normalization will be performed using TRAIN-only mean/std")
+
+    def scale(X: List[np.ndarray]) -> List[np.ndarray]:
+        return [scaler.transform(fr).astype(np.float32) for fr in X]
+
+    return scale
+
+
+def parser(directory: str, n_mfcc=6):
+    wavs, Fs, ids, y, speakers = parse_free_digits(directory)
+    frames = extract_features(wavs, n_mfcc=n_mfcc, Fs=Fs)
+    return split_free_digits(frames, ids, speakers, y)
+
+# ---------------- Robust finder for 'recordings' (mirrors prior workflow) ----------------
+def find_recordings_dir():
+    # 1) If 'drive_base' exists (used earlier), try that canonical path
+    if "drive_base" in globals():
+        candidate = os.path.join(
+            drive_base,
+            "NTUA-Pattern_Recognition/Lab1/pr_lab2_data/free-spoken-digit-dataset/recordings"
+        )
+        if os.path.isdir(candidate):
+            return candidate
+
+    # 2) Common relative locations
+    candidates = [
+        "recordings",
+        os.path.join("free-spoken-digit-dataset", "recordings"),
+        os.path.join("pr_lab2_data", "free-spoken-digit-dataset", "recordings"),
+    ]
+    for p in candidates:
+        if os.path.isdir(p):
+            return p
+
+    # 3) Shallow search for a folder named 'recordings' that contains wavs
+    for root, dirs, files in os.walk(".", topdown=True):
+        depth = os.path.relpath(root, ".").count(os.sep)
+        if depth > 4:    # keep it fast
+            dirs[:] = []
+            continue
+        if os.path.basename(root) == "recordings" and glob(os.path.join(root, "*.wav")):
+            return root
+
+    raise FileNotFoundError("Could not find 'recordings/' folder.")
+
+# ---------------- Locate recordings and align working directory (like Step 9) ----------------
+recordings_abs = find_recordings_dir()
+parent_dir     = os.path.dirname(recordings_abs)
+recordings_dirname = os.path.basename(recordings_abs)  # "recordings"
+os.chdir(parent_dir)
+print(f"[Path] Using recordings at: {os.path.abspath(recordings_abs)}")
+
+# ---------------- Load sequences (n_mfcc=6) and default TRAIN/TEST ----------------
+t0 = time.time()
+X_pool, X_test, y_pool, y_test, spk_pool, spk_test = parser(recordings_dirname, n_mfcc=6)
+print(f"\nInitial train set size: {len(X_pool)} samples")
+print(f"Initial test  set size: {len(X_test)} samples")
+if len(X_pool):
+    print(f"Example utterance feature matrix shape: {X_pool[0].shape}")
+    print(f"Example label: {y_pool[0]}")
+print(f"[Timing] Load+features+split: {time.time() - t0:.2f}s")
+
+# ---------------- Stratified TRAIN/VAL split (80/20) ----------------
+X_train, X_val, y_train, y_val, spk_train, spk_val = train_test_split(
+    X_pool, y_pool, spk_pool, test_size=0.20, stratify=y_pool, random_state=SEED
+)
+
+print("\nAfter stratified split:")
+print(f"Final TRAIN size    : {len(X_train)}")
+print(f"VALIDATION size     : {len(X_val)}")
+print(f"TEST size (held out): {len(X_test)}")
+
+# ---------------- Normalize with TRAIN-only statistics ----------------
+t1 = time.time()
+scale_fn = make_scale_fn(X_train)
+
+X_train = scale_fn(X_train)
+X_val   = scale_fn(X_val)
+X_test  = scale_fn(X_test)
+print("\nApplied normalization using TRAIN statistics only.")
+print(f"[Timing] Scaling: {time.time() - t1:.2f}s")
+
+# ---------------- Show class balance per split (Step-9 style) ----------------
+show_distribution(y_train, "TRAIN")
+show_distribution(y_val,   "VAL")
+show_distribution(y_test,  "TEST")
+
+# ---------------- Dataset with zero-padding per split ----------------
+class SeqDataset(Dataset):
+    """
+    Returns (padded_seq, label, length).
+    Padding up to the split’s max length; 'length' is the true number of frames.
+    """
+    def __init__(self, feats: List[np.ndarray], labels: List[int]):
+        assert len(feats) == len(labels)
+        self.lengths  = [int(f.shape[0]) for f in feats]
+        self.max_len  = max(self.lengths) if self.lengths else 0
+        self.feat_dim = int(feats[0].shape[1]) if feats else 0
+
+        N = len(feats)
+        padded = np.zeros((N, self.max_len, self.feat_dim), dtype=np.float32)
+        for i, f in enumerate(feats):
+            T = f.shape[0]
+            if T > 0:
+                padded[i, :T, :] = f.astype(np.float32)
+
+        self.x   = torch.from_numpy(padded)               # (N, Lmax, D)
+        self.y   = torch.tensor(labels, dtype=torch.long) # (N,)
+        self.len = torch.tensor(self.lengths, dtype=torch.long)
+
+    def __len__(self): return self.y.shape[0]
+    def __getitem__(self, idx): return self.x[idx], self.y[idx], self.len[idx]
+
+# ---------------- Build datasets & dataloaders ----------------
+trainset = SeqDataset(X_train, y_train)
+valset   = SeqDataset(X_val,   y_val)
+testset  = SeqDataset(X_test,  y_test)
+
+BATCH_SIZE = 32
+train_loader = DataLoader(trainset, batch_size=BATCH_SIZE, shuffle=True,  drop_last=False)
+val_loader   = DataLoader(valset,   batch_size=BATCH_SIZE, shuffle=False, drop_last=False)
+test_loader  = DataLoader(testset,  batch_size=BATCH_SIZE, shuffle=False, drop_last=False)
+
+print(f"\n[OK] Dataloaders ready | D={trainset.x.shape[-1]}")
+print(f"Lmax: train={trainset.x.shape[1]}, val={valset.x.shape[1]}, test={testset.x.shape[1]}")
+
+"""### **Steps 14.1–14.3 — Simple LSTM (Train-only) — Hyperparameter Sweep**
+
+#### **Objective**
+Train a simple LSTM **only on TRAIN** and compare runs by **final training loss**.  
+In this step we **do not** use bidirectionality, dropout, weight decay (L2), or early stopping.  
+We also **save per-epoch snapshots** so that Step 14.4 can compute **validation curves per epoch without retraining**.
+
+#### **Hyperparameters (exact values used)**
+- `rnn_size` (hidden units): **[16, 32, 64]**  
+- `num_layers` (depth): **[1, 2, 3]**  
+- `batch_size`: **[16, 32]**  
+- `epochs` (fixed per trial): **[15, 23, 30]**  
+- `lr` (AdamW learning rate): **[1e-4, 5e-4, 1e-3]**
+
+#### **Disabled (kept constant in this step)**
+- `bidirectional = False`  
+- `dropout = 0.0`  
+- `weight_decay = 0.0` (no L2)  
+- **No early stopping** (every trial runs its full epoch budget)
+
+#### **Determinism**
+A deterministic per-configuration seed is derived from the hyperparameters;  
+we also set a global seed for the sweep controller to ensure reproducibility.
+
+#### **Console output**
+- Printed **leaderboard** sorted by final training loss (top-30 shown).  
+- Explicit summary of **best** and **worst** configurations.
+
+
+"""
+
+# ==============================================================
+# Steps 14.1–14.3 — Simple LSTM (Train-only) — Save All Models (+ per-epoch snapshots)
+#   - Trains on TRAIN only (no early stopping, no dropout, no L2)
+#   - Saves a checkpoint for EVERY configuration (to be validated in 14.4)
+#   - Also saves per-epoch snapshots
+#   - Plots best/worst TRAIN loss curves
+# ==============================================================
+
+import os, json, itertools, numpy as np, random, torch
+import torch.nn as nn
+from torch.utils.data import DataLoader
+import matplotlib.pyplot as plt
+import pandas as pd
+from pathlib import Path
+from tqdm.auto import tqdm
+
+# ---------------- Reproducibility for the sweep controller ----------------
+GLOBAL_SEED = 0
+np.random.seed(GLOBAL_SEED); random.seed(GLOBAL_SEED); torch.manual_seed(GLOBAL_SEED)
+
+# ---------------- Data dims from the preparatory cell ----------------
+# These come from your Step 14 "Preparatory Cell"
+INPUT_DIM   = train_loader.dataset.x.shape[-1]
+NUM_CLASSES = 10
+
+# ---------------- Full Search Space ----------------
+rnn_sizes     = [16, 32, 64]
+num_layers_es = [1, 2, 3]
+batch_sizes   = [16, 32]
+epochs_es     = [15, 23, 30]
+lrs           = [1e-4, 5e-4, 1e-3]
+
+# ---------------- Fixed off (as per 14.1–14.3 spec) ----------------
+BIDIRECTIONAL = False
+DROPOUT       = 0.0
+WEIGHT_DECAY  = 0.0
+
+# ---------------- Snapshot controls ----------------
+SAVE_SNAPSHOTS = True     # save every epoch
+# (If storage becomes an issue, you can snapshot every k epochs. Keep it =1 for per-epoch VAL.)
+SNAPSHOT_EVERY = 1
+
+# ---------------- Output directories & files ----------------
+CKPT_DIR = Path("Step14_checkpoints_train_only")
+CKPT_DIR.mkdir(parents=True, exist_ok=True)
+LEADERBOARD_CSV  = CKPT_DIR / "leaderboard_train_only.csv"
+LEADERBOARD_JSON = CKPT_DIR / "leaderboard_train_only.json"
+
+# ---------------- Utilities ----------------
+def make_train_loader(bs: int):
+    """Create a TRAIN loader with the requested batch size."""
+    return DataLoader(trainset, batch_size=bs, shuffle=True, drop_last=False)
+
+class SimpleLSTM(nn.Module):
+    """
+    Minimal LSTM classifier for the sweep:
+      LSTM (no dropout, unidirectional) -> last valid timestep -> Linear(NUM_CLASSES)
+    """
+    def __init__(self, input_dim: int, hidden: int, num_layers: int, num_classes: int):
+        super().__init__()
+        self.lstm = nn.LSTM(
+            input_size=input_dim,
+            hidden_size=hidden,
+            num_layers=num_layers,
+            batch_first=True,
+            bidirectional=BIDIRECTIONAL,                   # fixed OFF here
+            dropout=(0.0 if num_layers == 1 else DROPOUT)  # disabled in this step
+        )
+        out_dim = hidden * (2 if BIDIRECTIONAL else 1)
+        self.fc = nn.Linear(out_dim, num_classes)
+
+    @staticmethod
+    def last_valid(outputs: torch.Tensor, lengths: torch.Tensor) -> torch.Tensor:
+        """
+        Gather the last non-padded frame for each sequence.
+        outputs: (N, L, F), lengths: (N,)
+        """
+        idx = (lengths - 1).view(-1, 1, 1).expand(outputs.size(0), 1, outputs.size(2))
+        return outputs.gather(1, idx).squeeze(1)  # (N, F)
+
+    def forward(self, x, lengths):
+        out, _ = self.lstm(x)                # (N, L, F)
+        last   = self.last_valid(out, lengths)
+        return self.fc(last)                 # (N, C)
+
+def seed_for_cfg(cfg: dict) -> int:
+    """Deterministic per-config seed derived from hyperparameters."""
+    return (GLOBAL_SEED
+            + cfg["rnn_size"] * 3
+            + cfg["num_layers"] * 5
+            + cfg["batch_size"] * 7
+            + int(cfg["lr"] * 1e6) * 11
+            + cfg["epochs"] * 13)
+
+def cfg_to_str(cfg: dict) -> str:
+    return (f"rnn={cfg['rnn_size']}, layers={cfg['num_layers']}, "
+            f"bs={cfg['batch_size']}, epochs={cfg['epochs']}, lr={cfg['lr']}")
+
+def lr_token(lr: float) -> str:
+    """Filename-safe token for LR (e.g., 0.001 -> '1e-03')."""
+    return f"{lr:.0e}".replace("+", "")
+
+def cfg_id(cfg: dict) -> str:
+    """Stable, filename-safe id for a config."""
+    return f"r{cfg['rnn_size']}_L{cfg['num_layers']}_bs{cfg['batch_size']}_e{cfg['epochs']}_lr{lr_token(cfg['lr'])}"
+
+def save_checkpoint(model: nn.Module,
+                    cfg: dict,
+                    train_losses: list,
+                    final_train_loss: float,
+                    seed_used: int,
+                    path: Path,
+                    snapshots_dir: Path | None = None):
+    """
+    Save everything needed for 14.4 validation:
+      - model_state (final weights)
+      - cfg (+ input_dim/num_classes + fixed flags)
+      - train_losses (history) and final_train_loss
+      - seed for reproducibility
+      - snapshots_dir (relative) if epoch snapshots were saved
+    """
+    ckpt = {
+        "model_state": model.state_dict(),
+        "cfg": {
+            **cfg,
+            "input_dim": INPUT_DIM,
+            "num_classes": NUM_CLASSES,
+            "bidirectional": BIDIRECTIONAL,
+            "dropout": DROPOUT,
+            "weight_decay": WEIGHT_DECAY,
+        },
+        "train_losses": train_losses,
+        "final_train_loss": float(final_train_loss),
+        "seed": seed_used,
+    }
+    if snapshots_dir is not None:
+        try:
+            ckpt["snapshots_dir"] = str(snapshots_dir.relative_to(CKPT_DIR))
+        except Exception:
+            ckpt["snapshots_dir"] = str(snapshots_dir)
+    torch.save(ckpt, path)
+
+# ---------------- Full cartesian grid ----------------
+all_combos = list(itertools.product(rnn_sizes, num_layers_es, batch_sizes, epochs_es, lrs))
+print(f"[Sweep] Evaluating FULL grid of {len(all_combos)} trials "
+      f"(no bidi, no dropout, no weight_decay; no early stopping)")
+
+# ---------------- Train a single configuration ----------------
+def train_one_config(cfg):
+    # Per-trial deterministic seeding
+    seed = seed_for_cfg(cfg)
+    np.random.seed(seed); random.seed(seed); torch.manual_seed(seed)
+
+    model = SimpleLSTM(
+        input_dim=INPUT_DIM,
+        hidden=cfg["rnn_size"],
+        num_layers=cfg["num_layers"],
+        num_classes=NUM_CLASSES,
+    )
+    optimizer = torch.optim.AdamW(model.parameters(), lr=cfg["lr"], weight_decay=WEIGHT_DECAY)
+    criterion = nn.CrossEntropyLoss()
+
+    tr_loader = make_train_loader(cfg["batch_size"])
+
+    # Prepare snapshot folder
+    snapshot_dir = None
+    if SAVE_SNAPSHOTS:
+        snapshot_dir = CKPT_DIR / f"snap_{cfg_id(cfg)}"
+        snapshot_dir.mkdir(parents=True, exist_ok=True)
+
+    train_losses = []
+    for epoch in range(1, cfg["epochs"] + 1):
+        model.train()
+        tot, n = 0.0, 0
+        for xb, yb, lb in tr_loader:
+            optimizer.zero_grad(set_to_none=True)
+            logits = model(xb, lb)
+            loss   = criterion(logits, yb)
+            loss.backward()
+            optimizer.step()
+            tot += loss.item() * yb.size(0)
+            n   += yb.size(0)
+        train_losses.append(tot / max(1, n))
+
+        # Save per-epoch snapshot (BiLSTM not used here, so just state_dict is enough)
+        if SAVE_SNAPSHOTS and (epoch % SNAPSHOT_EVERY == 0):
+            torch.save({"model_state": model.state_dict()},
+                       snapshot_dir / f"epoch_{epoch:03d}.pt")
+
+    final_loss = float(train_losses[-1])
+
+    # Save checkpoint for 14.4 validation
+    fname = f"model_{cfg_id(cfg)}.pt"
+    save_checkpoint(model, cfg, train_losses, final_loss, seed, CKPT_DIR / fname, snapshots_dir=snapshot_dir)
+    return final_loss, train_losses, fname
+
+# ---------------- Run the sweep, save EVERYTHING, and report ----------------
+results = []  # rows: {"cfg":..., "final_train_loss":..., "losses":..., "checkpoint":..., "cfg_id":..., "cfg_str":...}
+
+for (rnn_size, num_layers, batch_size, epochs, lr) in tqdm(all_combos, desc="Trials"):
+    cfg = {
+        "rnn_size":  rnn_size,
+        "num_layers": num_layers,
+        "batch_size": batch_size,
+        "epochs":     epochs,
+        "lr":         lr,
+    }
+    final_loss, losses, fname = train_one_config(cfg)
+    results.append({
+        "cfg": cfg,
+        "final_train_loss": final_loss,
+        "losses": losses,
+        "checkpoint": str(CKPT_DIR / fname),
+        "cfg_id": cfg_id(cfg),
+        "cfg_str": cfg_to_str(cfg),
+    })
+
+# ---------------- Rank by final TRAIN loss ----------------
+results_sorted = sorted(results, key=lambda r: r["final_train_loss"])
+best  = results_sorted[0]
+worst = results_sorted[-1]
+
+# ---------------- Persist leaderboard (CSV + JSON) ----------------
+df = pd.DataFrame([{
+    "cfg_id": r["cfg_id"],
+    "rnn_size": r["cfg"]["rnn_size"],
+    "num_layers": r["cfg"]["num_layers"],
+    "batch_size": r["cfg"]["batch_size"],
+    "epochs": r["cfg"]["epochs"],
+    "lr": r["cfg"]["lr"],
+    "final_train_loss": r["final_train_loss"],
+    "checkpoint": r["checkpoint"],
+} for r in results_sorted])
+
+df.to_csv(LEADERBOARD_CSV, index=False)
+with open(LEADERBOARD_JSON, "w") as f:
+    json.dump(results_sorted, f, indent=2)
+
+# ---------------- Console leaderboard (top 30 shown) ----------------
+print("\n=== Leaderboard (by final TRAIN loss, ascending) ===")
+show_n = min(30, len(results_sorted))
+for i, r in enumerate(results_sorted[:show_n], 1):
+    print(f"{i:2d}. {r['final_train_loss']:.4f} | {r['cfg_str']} | {r['checkpoint']}")
+
+print(f"\nBest : {best['final_train_loss']:.4f} | {best['cfg_str']} | {best['checkpoint']}")
+print(f"Worst: {worst['final_train_loss']:.4f} | {worst['cfg_str']} | {worst['checkpoint']}")
+
+# ---------------- Plot TRAIN loss curves for best and worst ----------------
+plt.figure(figsize=(7.2, 4.2), dpi=120)
+plt.plot(range(1, len(best["losses"])+1), best["losses"], marker="o")
+plt.xlabel("Epoch"); plt.ylabel("Training loss")
+plt.title(f"Best — {best['cfg_str']}")
+plt.grid(True, linewidth=0.4, alpha=0.6); plt.tight_layout()
+plt.savefig(CKPT_DIR / "Step 14.1-14.3 - Best Training Loss Curve.png")
+plt.show()
+
+plt.figure(figsize=(7.2, 4.2), dpi=120)
+plt.plot(range(1, len(worst["losses"])+1), worst["losses"], marker="o")
+plt.xlabel("Epoch"); plt.ylabel("Training loss")
+plt.title(f"Worst — {worst['cfg_str']}")
+plt.grid(True, linewidth=0.4, alpha=0.6); plt.tight_layout()
+plt.savefig(CKPT_DIR / "Step 14.1-14.3 - Worst Training Loss Curve.png")
+plt.show()
+
+print("\n[Saved]")
+print(f"  - Checkpoints (*.pt): {CKPT_DIR}/")
+print(f"  - Leaderboard CSV:    {LEADERBOARD_CSV}")
+print(f"  - Leaderboard JSON:   {LEADERBOARD_JSON}")
+print(f"  - Loss plots:         {CKPT_DIR}/Step 14.1-14.3 - *.png")
+
+"""### **Step 14.4 — Validation of Saved Models (per-epoch from snapshots)**
+
+#### **Objective**
+Evaluate **all models saved in Steps 14.1–14.3** on the **validation set** to obtain **per-epoch validation curves**  
+(`val_loss`, `val_acc`). This allows ranking configurations by **best validation performance** without retraining.
+
+Each model’s snapshots are loaded epoch by epoch and evaluated directly on the VAL split.
+
+#### **Snapshot logic (per checkpoint)**
+- **A)** If an external snapshot folder `snap_<cfg_id>/epoch_*.pt` exists → evaluate each saved epoch weight (**fast path**).  
+- **B)** Else, if the checkpoint contains in-memory epoch states → evaluate them (**rare**).  
+- **C)** Else, perform a **single-pass fallback** using only the final model weights (no per-epoch curve).
+
+#### **Model architecture**
+Same `SimpleLSTM` as in Steps 14.1–14.3:
+- Unidirectional LSTM (no dropout, no regularization)
+- Output: last valid timestep → linear layer → 10-way softmax
+
+#### **Inputs**
+- `Step14_checkpoints_train_only/leaderboard_train_only.json`  
+  (produced by Steps 14.1–14.3)
+- `snap_<cfg_id>/epoch_*.pt` directories containing saved snapshots
+- `val_loader` (must be defined from the Step-14 preparatory cell)
+
+#### **Outputs**
+- Sorted by **best validation loss** (tie-breaker: higher validation accuracy)
+- Includes for each configuration:
+  - Full per-epoch `val_curve` and `val_acc_curve`
+  - `best_epoch`, `best_val_loss`, `best_val_acc`
+  - Corresponding training curve (`train_curve_used`)
+  - Checkpoint path for reloading
+
+#### **Figures**
+Two per-epoch comparison plots:
+1. `Step 14.4 - Best (Train+Val Curves).png` — lowest validation loss  
+2. `Step 14.4 - Worst (Train+Val Curves).png` — highest validation loss  
+
+Both display **training vs. validation loss curves** across epochs.
+
+#### **Console output**
+- Summary of top configurations (sorted by best validation loss)
+- Best and worst models with details:
+  - `rnn_size`, `num_layers`, `batch_size`, `epochs`, `lr`, `best_epoch`
+  - Validation loss/accuracy and final training loss
+
+> This step bridges the training-only sweep and the later regularized/early-stopping stages.  
+> It establishes a **validation-based ranking** of all pure-training models,  
+> setting the foundation for dropout/L2 tuning in Steps 14.5–14.6.
+
+"""
+
+# ==============================================================
+# Step 14.4 — Validate ALL saved models on VAL (per-epoch, from snapshots)
+#   + Builds full VAL curves (val_loss, val_acc per epoch) using saved epoch snapshots
+#   + Ranks by best VAL loss across epochs (tie-break: higher val_acc)
+#   + Plots BEST/WORST with TRAIN vs VAL curves (per-epoch)
+# ==============================================================
+
+import os, json, math, glob, torch, numpy as np, pandas as pd
+import torch.nn as nn
+import matplotlib.pyplot as plt
+from pathlib import Path
+from tqdm.auto import tqdm
+from torch.utils.data import DataLoader
+
+# ---------------- Expected artifacts from Step 14.1–14.3 ----------------
+CKPT_DIR            = Path("Step14_checkpoints_train_only")
+LEADERBOARD_JSON_IN = CKPT_DIR / "leaderboard_train_only.json"   # produced earlier
+LEADERBOARD_CSV_OUT = CKPT_DIR / "leaderboard_with_val.csv"      # produced here
+LEADERBOARD_JSON_OUT= CKPT_DIR / "leaderboard_with_val.json"     # produced here
+PLOTS_DIR           = CKPT_DIR
+
+assert CKPT_DIR.is_dir(), f"Missing directory: {CKPT_DIR}"
+assert LEADERBOARD_JSON_IN.is_file(), f"Missing file: {LEADERBOARD_JSON_IN}"
+assert 'val_loader' in globals(), "Run the preparatory cell first to create val_loader."
+
+# ---------------- Model definition (must match 14.1–14.3) ----------------
+class SimpleLSTM(nn.Module):
+    """
+    Same architecture used during the training-only sweep:
+      LSTM (unidirectional, dropout off) -> last valid timestep -> Linear(NUM_CLASSES)
+    """
+    def __init__(self, input_dim: int, hidden: int, num_layers: int, num_classes: int, bidirectional: bool):
+        super().__init__()
+        self.bidirectional = bidirectional
+        self.lstm = nn.LSTM(
+            input_size=input_dim,
+            hidden_size=hidden,
+            num_layers=num_layers,
+            batch_first=True,
+            bidirectional=bidirectional,
+            dropout=0.0  # disabled in 14.1–14.3
+        )
+        out_dim = hidden * (2 if bidirectional else 1)
+        self.fc = nn.Linear(out_dim, num_classes)
+
+    @staticmethod
+    def last_valid(outputs: torch.Tensor, lengths: torch.Tensor) -> torch.Tensor:
+        idx = (lengths - 1).view(-1, 1, 1).expand(outputs.size(0), 1, outputs.size(2))
+        return outputs.gather(1, idx).squeeze(1)
+
+    def forward(self, x, lengths):
+        out, _ = self.lstm(x)                # (N, L, F)
+        last   = self.last_valid(out, lengths)
+        return self.fc(last)                 # (N, C)
+
+def rebuild_model_from_cfg(cfg: dict) -> nn.Module:
+    return SimpleLSTM(
+        input_dim     = int(cfg["input_dim"]),
+        hidden        = int(cfg["rnn_size"]),
+        num_layers    = int(cfg["num_layers"]),
+        num_classes   = int(cfg.get("num_classes", 10)),
+        bidirectional = bool(cfg.get("bidirectional", False)),
+    )
+
+# ---------------- Helpers ----------------
+@torch.no_grad()
+def eval_once(model: nn.Module, loader, criterion: nn.Module):
+    """Average cross-entropy loss and accuracy on a split."""
+    model.eval()
+    total_loss, total_n, total_correct = 0.0, 0, 0
+    for xb, yb, lb in loader:
+        logits = model(xb, lb)
+        loss   = criterion(logits, yb)
+        total_loss += loss.item() * yb.size(0)
+        total_n    += yb.size(0)
+        pred = logits.argmax(dim=1)
+        total_correct += (pred == yb).sum().item()
+    return float(total_loss / max(1, total_n)), float(total_correct / max(1, total_n))
+
+def _snapshots_for_ckpt(ckpt_obj: dict, ckpt_path: Path):
+    """
+    Return a list of epoch snapshot file paths in ascending order, if available.
+    Preference:
+      1) external directory pointed by 'snapshots_dir'
+      2) in-memory list 'epoch_states' (rare; handled by returning ('in_memory', list))
+    """
+    # External folder
+    snap_dir = ckpt_obj.get("snapshots_dir", None)
+    if snap_dir is not None:
+        sd = Path(snap_dir)
+        if not sd.is_absolute():
+            sd = ckpt_path.parent / sd
+        files = sorted(glob.glob(str(sd / "epoch_*.pt")))
+        if files:
+            return ("external", files)
+    # In-memory list
+    snaps = ckpt_obj.get("epoch_states", None)
+    if isinstance(snaps, list) and len(snaps) > 0:
+        return ("in_memory", snaps)
+    return (None, None)
+
+def plot_train_and_val_curves(train_losses, val_losses, title, outpath):
+    """TRAIN vs VAL loss curves on the same axes (per-epoch)."""
+    plt.figure(figsize=(7.6, 4.6), dpi=120)
+    if len(train_losses) > 0:
+        plt.plot(range(1, len(train_losses)+1), train_losses, marker="o", label="train loss")
+    if len(val_losses) > 0:
+        plt.plot(range(1, len(val_losses)+1),   val_losses,   marker="^", label="val loss")
+    plt.xlabel("Epoch"); plt.ylabel("Loss"); plt.title(title)
+    plt.grid(True, linewidth=0.5, alpha=0.6); plt.legend(); plt.tight_layout()
+    outpath.parent.mkdir(parents=True, exist_ok=True)
+    plt.savefig(outpath); plt.show()
+
+# ---------------- Load training-only leaderboard ----------------
+with open(LEADERBOARD_JSON_IN, "r") as f:
+    train_only_entries = json.load(f)
+assert isinstance(train_only_entries, list) and len(train_only_entries) > 0, "Empty leaderboard JSON."
+
+criterion = nn.CrossEntropyLoss()
+val_results = []  # rows with cfg + train_loss + best val stats + curves + checkpoint
+
+print(f"[14.4] Validating {len(train_only_entries)} trained models on the VAL set (per-epoch from snapshots)...")
+
+for item in tqdm(train_only_entries, desc="Per-epoch validation"):
+    ckpt_path = Path(item["checkpoint"])
+    assert ckpt_path.is_file(), f"Missing checkpoint file: {ckpt_path}"
+
+    ckpt_obj = torch.load(ckpt_path, map_location="cpu")
+    cfg = ckpt_obj.get("cfg", item.get("cfg", {}))  # prefer inside-ckpt cfg (has input_dim, etc.)
+
+    # Build model shape and load final weights (used to init before loading epoch states)
+    model = rebuild_model_from_cfg(cfg)
+    model.load_state_dict(ckpt_obj["model_state"])
+
+    # TRAIN curve: use what's stored (full per-epoch)
+    train_curve = ckpt_obj.get("train_losses", item.get("losses", []))
+
+    # Snapshot discovery
+    snap_kind, snap_data = _snapshots_for_ckpt(ckpt_obj, ckpt_path)
+
+    val_curve, acc_curve = [], []
+
+    if snap_kind == "external":
+        # Evaluate each saved 'epoch_*.pt' file
+        for p in snap_data:
+            blob = torch.load(p, map_location="cpu")
+            state = blob.get("model_state", blob)
+            model.load_state_dict(state)
+            vl, va = eval_once(model, val_loader, criterion)
+            val_curve.append(vl); acc_curve.append(va)
+
+    elif snap_kind == "in_memory":
+        # Evaluate each in-memory state_dict (rare)
+        for state in snap_data:
+            model.load_state_dict(state)
+            vl, va = eval_once(model, val_loader, criterion)
+            val_curve.append(vl); acc_curve.append(va)
+
+    else:
+        # Fallback: single-pass on final weights (no per-epoch curve available)
+        vl, va = eval_once(model, val_loader, criterion)
+        val_curve = [vl]; acc_curve = [va]
+        tqdm.write(f"[WARN] No snapshots found for {ckpt_path.name} → single-pass fallback")
+
+    # Best epoch selection by lowest val loss; break ties by higher acc
+    val_arr = np.array(val_curve, dtype=float)
+    acc_arr = np.array(acc_curve, dtype=float) if len(acc_curve) == len(val_curve) else np.full_like(val_arr, np.nan)
+    best_ep = int(np.argmin(val_arr))
+    best_val = float(val_arr[best_ep])
+    best_acc = float(acc_arr[best_ep]) if not np.isnan(acc_arr[best_ep]) else float('nan')
+
+    # Compose row (keys consumed by later steps)
+    val_results.append({
+        "cfg_id": item["cfg_id"],
+        "rnn_size": int(cfg["rnn_size"]),
+        "num_layers": int(cfg["num_layers"]),
+        "batch_size": int(cfg["batch_size"]),
+        "epochs": int(cfg["epochs"]),
+        "lr": float(cfg["lr"]),
+        "final_train_loss": float(ckpt_obj.get("final_train_loss", train_curve[-1] if train_curve else math.nan)),
+        "val_loss": best_val,              # BEST across epochs
+        "val_acc": best_acc,               # acc at the best-VAL-loss epoch
+        "best_epoch": int(best_ep + 1),
+        "val_curve": list(map(float, val_curve)),
+        "val_acc_curve": (list(map(float, acc_curve)) if len(acc_curve) == len(val_curve) else []),
+        "train_curve_used": list(map(float, train_curve)),
+        "checkpoint": str(ckpt_path),
+    })
+
+# ---------------- Rank by val_loss & persist ----------------
+df_val = pd.DataFrame(val_results)
+df_by_val_loss = df_val.sort_values(["val_loss", "final_train_loss"], ascending=[True, True]).reset_index(drop=True)
+
+df_by_val_loss.to_csv(LEADERBOARD_CSV_OUT, index=False)
+with open(LEADERBOARD_JSON_OUT, "w") as f:
+    json.dump(df_by_val_loss.to_dict(orient="records"), f, indent=2)
+
+# ---------------- Print concise summary ----------------
+print("\n=== Step 14.4 — Top models by BEST VAL loss (ascending) ===")
+top_n = min(30, len(df_by_val_loss))
+for i in range(top_n):
+    row = df_by_val_loss.iloc[i]
+    print(f"{i+1:2d}. best_val_loss={row.val_loss:.4f} | val_acc@best={row.val_acc:.4f} "
+          f"| train_loss_last={row.final_train_loss:.4f} | best_epoch={row.best_epoch} "
+          f"| rnn={row.rnn_size}, L={row.num_layers}, bs={row.batch_size}, e={row.epochs}, lr={row.lr} "
+          f"| {row.checkpoint}")
+
+print(f"\n[Saved] Validation leaderboard (by BEST val loss): {LEADERBOARD_CSV_OUT}")
+print(f"[Saved] Validation leaderboard (JSON):            {LEADERBOARD_JSON_OUT}")
+
+# ---------------- Diagrams: Best & Worst (TRAIN curve + VAL curve) ----------------
+def _get_train_curve_from_ckpt(path: Path):
+    b = torch.load(path, map_location="cpu")
+    return b.get("train_losses", b.get("losses", []))
+
+best_row  = df_by_val_loss.iloc[0]
+worst_row = df_by_val_loss.iloc[-1]
+
+best_train_curve = best_row.get("train_curve_used", []) or _get_train_curve_from_ckpt(Path(best_row["checkpoint"]))
+worst_train_curve= worst_row.get("train_curve_used", []) or _get_train_curve_from_ckpt(Path(worst_row["checkpoint"]))
+
+# Plot and save (TRAIN vs VAL curves) — per-epoch
+plot_train_and_val_curves(
+    best_train_curve,
+    list(best_row["val_curve"]),
+    title=(f"Step 14.4 — Best model\n"
+           f"(rnn={best_row.rnn_size}, L={best_row.num_layers}, bs={best_row.batch_size}, "
+           f"e={best_row.epochs}, lr={best_row.lr}, best@ep={best_row.best_epoch})"),
+    outpath=PLOTS_DIR / "Step 14.4 - Best (Train+Val Curves).png"
+)
+
+plot_train_and_val_curves(
+    worst_train_curve,
+    list(worst_row["val_curve"]),
+    title=(f"Step 14.4 — Worst model\n"
+           f"(rnn={worst_row.rnn_size}, L={worst_row.num_layers}, bs={worst_row.batch_size}, "
+           f"e={worst_row.epochs}, lr={worst_row.lr}, best@ep={worst_row.best_epoch})"),
+    outpath=PLOTS_DIR / "Step 14.4 - Worst (Train+Val Curves).png"
+)
+
+"""### **Steps 14.5–14.6 — Dropout & L2: FIXED (cap=30) vs EARLY STOPPING (≤30)**
+
+#### **Goal**
+Starting from the **Top-K bases** selected in **Step 14.4**, explore explicit regularization:
+- **Dropout** and **L2 weight decay** across small grids
+- Compare two training regimes **under identical seeds**:
+  - **FIXED-30E**: exactly 30 epochs (no early stopping)
+  - **EARLY**: up to 30 epochs with early stopping on **VAL loss** (patience = 3, min_delta = 1e-4)
+
+This step produces separate leaderboards per regime and a **text-only** cross-regime comparison.
+
+#### **Setup**
+- **TOP_K**: `5` (best 5 base configs from Step 14.4)
+- **EPOCHS_MAX**: `30`
+- **Grids**:
+  - `dropout ∈ {0.0, 0.2, 0.4}`
+  - `weight_decay ∈ {0.0, 1e−4, 1e−3}`
+- **Optimizer**: AdamW (per base LR from Step 14.4)
+- **Architecture**: same unidirectional LSTM shape as the selected base (no BiLSTM here)
+- **Seeding**: per-trial seeds depend on the **base hyperparams + (dropout, weight_decay)**  
+  and are **identical across regimes** for fair comparison.
+
+#### **Inputs**
+- From Step 14.4:
+  - `Step14_checkpoints_train_only/leaderboard_with_val.json`  
+    (to identify the Top-K base configurations)
+
+- Data:
+  - `trainset`, `valset` (provided by the Step-14 preparatory cell)
+
+#### **Outputs**
+- **Console summaries**:
+  - Did explicit regularization help vs (dropout=0, wd=0) baseline? (per regime)
+  - Count/mean Δloss statistics and selected knobs
+  - Early vs Fixed effect (counts + mean/median deltas)
+
+#### **Figures**
+1. `FIXED_30E - BEST (Train+Val).png` — **Best** trial in FIXED-30E (TRAIN & VAL loss curves)
+2. `FIXED_30E - WORST (Train+Val).png` — **Worst** trial in FIXED-30E (TRAIN & VAL loss curves)
+3. `EARLY - BEST (Train+Val).png` — **Best** trial in EARLY (TRAIN & VAL loss curves)
+4. `EARLY - WORST (Train+Val).png` — **Worst** trial in EARLY (TRAIN & VAL loss curves)
+
+#### **What this step answers**
+- **Regularization impact**: Do dropout/L2 **reduce VAL loss** compared to no-reg baselines?
+- **Regime impact**: Does **early stopping** outperform **fixed-epoch** training for the same base and seed?
+- **Best/worst behavior**: How do TRAIN vs VAL losses evolve over epochs for the extremes in each regime?
+
+
+"""
+
+# ==============================================================
+# Steps 14.5–14.6 — Dropout + L2, FIXED (cap=30) vs EARLY STOPPING (≤30)
+#   • Two regimes over the SAME seeds for fairness:
+#       (A) FIXED-30E : train for exactly EPOCHS_MAX (=30) epochs (no early stopping)
+#       (B) EARLY     : up to EPOCHS_MAX (=30) epochs with Early Stopping on VAL loss (patience=3)
+#   • Build separate leaderboards for both regimes + cross-regime comparison
+#   • Also print clear summaries: did dropout/L2 help? did early stopping help?
+#
+# IMPORTANT:
+#   • TOP_K = 5 (use only the 5 best bases from Step 14.4)
+#   • EPOCHS_MAX = 30
+#   • DROPOUT and WEIGHT_DECAY grids include 0.0 (ablation baselines)
+#
+# Output diagrams:
+#   1) Best model from FIXED (TRAIN+VAL curves)
+#   2) Worst model from FIXED (TRAIN+VAL curves)
+#   3) Best model from EARLY  (TRAIN+VAL curves)
+#   4) Worst model from EARLY (TRAIN+VAL curves)
+# ==============================================================
+
+import os, json, math, numpy as np, random, torch
+import torch.nn as nn
+from torch.utils.data import DataLoader
+from pathlib import Path
+from tqdm.auto import tqdm
+import pandas as pd
+import matplotlib.pyplot as plt
+
+# --------------------------- Preconditions ---------------------------
+assert 'trainset' in globals() and 'valset' in globals(), \
+    "Run the Step-14 Preparatory Cell first (must define trainset/valset)."
+
+# Infer input feature dimension (matches earlier SeqDataset)
+INPUT_DIM   = int(trainset.x.shape[-1])
+NUM_CLASSES = 10
+
+CKPT_DIR_14_4    = Path("Step14_checkpoints_train_only")
+LEADERBOARD_14_4 = CKPT_DIR_14_4 / "leaderboard_with_val.json"
+assert LEADERBOARD_14_4.is_file(), f"Missing Step 14.4 leaderboard: {LEADERBOARD_14_4}"
+
+# --------------------------- Experiment knobs ---------------------------
+TOP_K       = 5                  # Top-5 bases from step 14.4
+EPOCHS_MAX  = 30                 # Train up to 30 epochs per trial
+DROPOUT_GRID       = [0.0, 0.2, 0.4]       # includes 0.0 (no dropout baseline)
+WEIGHT_DECAY_GRID  = [0.0, 1e-4, 1e-3]     # includes 0.0 (no L2 baseline)
+PATIENCE    = 3                  # Early stopping patience
+MIN_DELTA   = 1e-4               # Min improvement on val loss to reset patience
+
+# Reproducibility (regime-independent seeds)
+GLOBAL_SEED = 0
+np.random.seed(GLOBAL_SEED); random.seed(GLOBAL_SEED); torch.manual_seed(GLOBAL_SEED)
+
+# --------------------------- Outputs (30ep / 30E) ---------------------------
+ROOT = Path("Step14_reg_top30_compare_30ep")
+ROOT.mkdir(parents=True, exist_ok=True)
+FIXED_DIR = ROOT / "FIXED_30E"
+EARLY_DIR = ROOT / "EARLY_STOP"
+for d in (FIXED_DIR, EARLY_DIR):
+    d.mkdir(parents=True, exist_ok=True)
+
+# Leaderboards
+LB_FIXED_CSV  = ROOT / "leaderboard_FIXED_30E.csv"
+LB_FIXED_JSON = ROOT / "leaderboard_FIXED_30E.json"
+LB_EARLY_CSV  = ROOT / "leaderboard_EARLY.csv"
+LB_EARLY_JSON = ROOT / "leaderboard_EARLY.json"
+
+# Only the 4 requested plots
+PLOT_FIXED_BEST  = ROOT / "FIXED_30E - BEST (Train+Val).png"
+PLOT_FIXED_WORST = ROOT / "FIXED_30E - WORST (Train+Val).png"
+PLOT_EARLY_BEST  = ROOT / "EARLY - BEST (Train+Val).png"
+PLOT_EARLY_WORST = ROOT / "EARLY - WORST (Train+Val).png"
+
+# --------------------------- Utilities & model ---------------------------
+def lr_token(lr: float) -> str:
+    """Filename-safe token for learning rate."""
+    return f"{lr:.0e}".replace("+","")
+
+def base_cfg_id(rnn_size: int, num_layers: int, batch_size: int, lr: float) -> str:
+    """Stable, filename-safe id for a base config (from Step 14.4)."""
+    return f"r{rnn_size}_L{num_layers}_bs{batch_size}_lr{lr_token(lr)}"
+
+def make_loaders(bs: int):
+    """Build TRAIN/VAL loaders for a given batch size (test not needed here)."""
+    train_loader = DataLoader(trainset, batch_size=bs, shuffle=True,  drop_last=False)
+    val_loader   = DataLoader(valset,   batch_size=bs, shuffle=False, drop_last=False)
+    return train_loader, val_loader
+
+def seed_for_trial(base_tuple, dropout_p: float, weight_decay: float) -> int:
+    """
+    Per-trial deterministic seed mixing base hyperparams & new regs.
+    NOTE: Does NOT depend on the regime (FIXED vs EARLY) so both regimes
+          start from identical initializations → fair comparison.
+    """
+    (rnn_size, num_layers, batch_size, lr) = base_tuple
+    return (GLOBAL_SEED
+            + rnn_size * 3
+            + num_layers * 5
+            + batch_size * 7
+            + int(lr * 1e6) * 11
+            + EPOCHS_MAX * 13
+            + int(dropout_p * 1000) * 17
+            + int(weight_decay * 1e6) * 19)
+
+class EarlyStopping:
+    """Stop if val_loss fails to improve by MIN_DELTA for PATIENCE epochs."""
+    def __init__(self, patience: int, min_delta: float = 0.0):
+        self.patience   = patience
+        self.min_delta  = min_delta
+        self.best       = math.inf
+        self.bad_epochs = 0
+    def step(self, current: float) -> bool:
+        improved = (self.best - current) > self.min_delta
+        if improved:
+            self.best = current
+            self.bad_epochs = 0
+            return False
+        self.bad_epochs += 1
+        return self.bad_epochs >= self.patience
+
+class BasicLSTM(nn.Module):
+    """
+    LSTM classifier with regularization:
+      • LSTM stack with inter-layer dropout when num_layers > 1 (PyTorch semantics)
+      • Post-LSTM dropout before the classifier (always applied)
+      • Unidirectional (BiLSTM handled elsewhere)
+    """
+    def __init__(self, input_dim: int, hidden: int, num_layers: int,
+                 num_classes: int, dropout_p: float, bidirectional: bool = False):
+        super().__init__()
+        self.lstm = nn.LSTM(
+            input_size=input_dim,
+            hidden_size=hidden,
+            num_layers=num_layers,
+            batch_first=True,
+            bidirectional=bidirectional,
+            dropout=(dropout_p if num_layers > 1 else 0.0),
+        )
+        out_dim = hidden * (2 if bidirectional else 1)
+        self.post_dropout = nn.Dropout(dropout_p)
+        self.fc = nn.Linear(out_dim, num_classes)
+
+    @staticmethod
+    def last_by_index(outputs: torch.Tensor, lengths: torch.Tensor) -> torch.Tensor:
+        """Gather each sequence’s last valid timestep."""
+        idx = (lengths - 1).view(-1, 1, 1).expand(outputs.size(0), 1, outputs.size(2))
+        return outputs.gather(1, idx).squeeze(1)
+
+    def forward(self, x, lengths):
+        y, _ = self.lstm(x)           # (N, L, F)
+        last = self.last_by_index(y, lengths)
+        return self.fc(self.post_dropout(last))
+
+def train_epoch(model: nn.Module, loader, opt, crit) -> float:
+    """One training epoch: average loss on TRAIN."""
+    model.train()
+    tot, n = 0.0, 0
+    for xb, yb, lb in loader:
+        opt.zero_grad(set_to_none=True)
+        logits = model(xb, lb)
+        loss   = crit(logits, yb)
+        loss.backward()
+        opt.step()
+        tot += loss.item() * yb.size(0)
+        n   += yb.size(0)
+    return float(tot / max(1, n))
+
+@torch.no_grad()
+def eval_epoch(model: nn.Module, loader, crit):
+    """One evaluation epoch: (avg loss, accuracy) on VAL."""
+    model.eval()
+    tot, n, correct = 0.0, 0, 0
+    for xb, yb, lb in loader:
+        logits = model(xb, lb)
+        loss   = crit(logits, yb)
+        tot += loss.item() * yb.size(0)
+        n   += yb.size(0)
+        pred = logits.argmax(dim=1)
+        correct += (pred == yb).sum().item()
+    return float(tot / max(1, n)), float(correct / max(1, n))
+
+def plot_curves(history, title: str, out_path: Path):
+    """
+    Plot TRAIN & VAL loss curves on the SAME axes and save PNG.
+    Always shows the figure (no toggles).
+    """
+    plt.figure(figsize=(7.6, 4.6), dpi=120)
+    plt.plot(range(1, len(history["train"])+1), history["train"], marker="o", label="train")
+    plt.plot(range(1, len(history["val"])+1),   history["val"],   marker="o", label="val")
+    plt.xlabel("Epoch"); plt.ylabel("Loss"); plt.title(title)
+    plt.grid(True, linewidth=0.5, alpha=0.6); plt.legend(); plt.tight_layout()
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    plt.savefig(out_path); plt.show()
+
+# --------------------------- Load TOP-5 bases from Step 14.4 ---------------------------
+rows_14_4 = json.loads(LEADERBOARD_14_4.read_text())
+df_14_4 = pd.DataFrame(rows_14_4).sort_values(
+    ["val_loss", "final_train_loss"], ascending=[True, True]
+).reset_index(drop=True)
+top_base = df_14_4.head(TOP_K).copy()
+
+print(f"[14.5–14.6] Retraining TOP-{TOP_K} base configs with new regs (dropout, weight_decay).")
+print(top_base[["rnn_size","num_layers","batch_size","lr","val_loss","val_acc"]])
+
+# --------------------------- Core runner for each regime ---------------------------
+def run_grid_for_regime(regime_label: str, use_early_stopping: bool, out_root: Path) -> pd.DataFrame:
+    """
+    Runs dropout × weight_decay grid across TOP-K bases for a given regime.
+    - FIXED-30E : use_early_stopping=False → always perform EPOCHS_MAX (=30) epochs
+    - EARLY     : use_early_stopping=True  → up to EPOCHS_MAX (=30) with early stopping
+    Returns a sorted DataFrame with per-trial metrics and paths.
+    """
+    all_rows = []
+
+    for idx, base_row in top_base.iterrows():
+        # Base hyperparameters selected in Step 14.4 (arch, lr, batch)
+        rnn_size   = int(base_row["rnn_size"])
+        num_layers = int(base_row["num_layers"])
+        batch_size = int(base_row["batch_size"])
+        lr         = float(base_row["lr"])
+        base_id    = base_cfg_id(rnn_size, num_layers, batch_size, lr)
+
+        base_out = out_root / base_id
+        base_out.mkdir(parents=True, exist_ok=True)
+
+        print(f"\n[{regime_label} | Base {idx+1:02d}/{len(top_base)}] {base_id} (epochs_max={EPOCHS_MAX})")
+        train_loader, val_loader = make_loaders(batch_size)
+
+        grid = [(do, wd) for do in DROPOUT_GRID for wd in WEIGHT_DECAY_GRID]
+        for (dropout_p, weight_decay) in tqdm(grid, desc=f"{regime_label} {base_id} — grid", leave=False):
+            # Identical seed per (base, dropout, wd) across both regimes
+            seed = seed_for_trial((rnn_size, num_layers, batch_size, lr), dropout_p, weight_decay)
+            np.random.seed(seed); random.seed(seed); torch.manual_seed(seed)
+
+            # Model/opt/crit
+            model = BasicLSTM(INPUT_DIM, rnn_size, num_layers, NUM_CLASSES,
+                              dropout_p=dropout_p, bidirectional=False)
+            optim = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
+            crit  = nn.CrossEntropyLoss()
+
+            # Book-keeping
+            history = {"train": [], "val": [], "val_acc": []}
+            best_blob = None
+            stopper   = EarlyStopping(PATIENCE, MIN_DELTA) if use_early_stopping else None
+
+            trial_tag = f"{base_id}_do{dropout_p:.2f}_wd{weight_decay:.0e}".replace("+","")
+            ckpt_path = base_out / f"best_{regime_label}_{trial_tag}.pt"
+
+            # Epoch loop — always validate/log; EARLY may break sooner
+            for ep in range(1, EPOCHS_MAX + 1):
+                tr = train_epoch(model, train_loader, optim, crit)
+                vl, va = eval_epoch(model, val_loader, crit)
+                history["train"].append(tr)
+                history["val"].append(vl)
+                history["val_acc"].append(va)
+
+                # Keep best by val loss
+                if (best_blob is None) or (vl < best_blob["best_val_loss"] - 0.0):
+                    best_blob = {
+                        "model_state": model.state_dict(),
+                        "meta": {
+                            "input_dim": INPUT_DIM, "num_classes": NUM_CLASSES,
+                            "rnn_size": rnn_size, "num_layers": num_layers,
+                            "batch_size": batch_size, "epochs_cap": EPOCHS_MAX,
+                            "lr": lr, "dropout": dropout_p, "weight_decay": weight_decay,
+                            "bidirectional": False, "regime": regime_label
+                        },
+                        "history": {k: v[:] for k, v in history.items()},
+                        "seed": seed,
+                        "base_id": base_id,
+                        "trial_tag": trial_tag,
+                        "best_val_loss": vl,
+                        "best_val_acc": va,
+                        "best_epoch": ep,
+                    }
+
+                # Early stopping if enabled
+                if use_early_stopping and stopper.step(vl):
+                    tqdm.write(f"{regime_label}: Early stopping at epoch {ep}/{EPOCHS_MAX}")
+                    break
+
+            # Ensure we have a best epoch
+            assert best_blob is not None, "No best epoch recorded; check loops."
+            torch.save(best_blob, ckpt_path)
+
+            all_rows.append({
+                "regime": regime_label,
+                "base_id": base_id,
+                "rnn_size": rnn_size,
+                "num_layers": num_layers,
+                "batch_size": batch_size,
+                "lr": lr,
+                "dropout": dropout_p,
+                "weight_decay": weight_decay,
+                "best_val_loss": float(best_blob["best_val_loss"]),
+                "best_val_acc": float(best_blob["best_val_acc"]),
+                "epochs_run": len(history["val"]),
+                "best_epoch": int(best_blob["best_epoch"]),
+                "checkpoint": str(ckpt_path),
+                "trial_tag": trial_tag,
+            })
+
+    df = pd.DataFrame(all_rows).sort_values(
+        ["best_val_loss", "best_val_acc"], ascending=[True, False]
+    ).reset_index(drop=True)
+    return df
+
+# --------------------------- Run BOTH regimes (same seeds) ---------------------------
+df_FIXED = run_grid_for_regime("FIXED_30E", use_early_stopping=False, out_root=FIXED_DIR)
+df_EARLY = run_grid_for_regime("EARLY",     use_early_stopping=True,  out_root=EARLY_DIR)
+
+# Persist leaderboards
+df_FIXED.to_csv(LB_FIXED_CSV, index=False)
+with open(LB_FIXED_JSON, "w") as f: json.dump(df_FIXED.to_dict(orient="records"), f, indent=2)
+df_EARLY.to_csv(LB_EARLY_CSV, index=False)
+with open(LB_EARLY_JSON, "w") as f: json.dump(df_EARLY.to_dict(orient="records"), f, indent=2)
+
+print(f"\n[Saved] FIXED-30E leaderboard (written to {LB_FIXED_CSV.name}/{LB_FIXED_JSON.name}) in {ROOT}")
+print(f"[Saved] EARLY leaderboard     (written to {LB_EARLY_CSV.name}/{LB_EARLY_JSON.name}) in {ROOT}")
+
+# --------------------------- ONLY the 4 requested diagrams ---------------------------
+def plot_overall_extremes(df, regime_label: str, out_best: Path, out_worst: Path):
+    best_row  = df.iloc[0]
+    worst_row = df.iloc[-1]
+    best_blob  = torch.load(Path(best_row["checkpoint"]),  map_location="cpu")
+    worst_blob = torch.load(Path(worst_row["checkpoint"]), map_location="cpu")
+    plot_curves(
+        best_blob["history"],
+        title=(f"{regime_label} — BEST: {best_row['trial_tag']}\n"
+               f"val_loss={best_row['best_val_loss']:.4f}, val_acc={best_row['best_val_acc']:.4f}"
+               f", best_epoch={best_row['best_epoch']} / max={EPOCHS_MAX}"),
+        out_path=out_best
+    )
+    plot_curves(
+        worst_blob["history"],
+        title=(f"{regime_label} — WORST: {worst_row['trial_tag']}\n"
+               f"val_loss={worst_row['best_val_loss']:.4f}, val_acc={worst_row['best_val_acc']:.4f}"
+               f", best_epoch={worst_row['best_epoch']} / max={EPOCHS_MAX}"),
+        out_path=out_worst
+    )
+    print(f"\n[{regime_label}] BEST:", best_row.to_dict())
+    print(f"[{regime_label}] WORST:", worst_row.to_dict())
+
+plot_overall_extremes(df_FIXED, "FIXED_30E", PLOT_FIXED_BEST, PLOT_FIXED_WORST)
+plot_overall_extremes(df_EARLY, "EARLY",     PLOT_EARLY_BEST, PLOT_EARLY_WORST)
+
+# --------------------------- Cross-regime comparison (per base) — TEXT ONLY ---------------------------
+best_FIXED_by_base = (df_FIXED.sort_values(["base_id","best_val_loss","best_val_acc"], ascending=[True,True,False])
+                            .groupby("base_id", as_index=False).first())
+best_EARLY_by_base = (df_EARLY.sort_values(["base_id","best_val_loss","best_val_acc"], ascending=[True,True,False])
+                            .groupby("base_id", as_index=False).first())
+
+cmp = pd.merge(
+    best_FIXED_by_base[["base_id","best_val_loss","best_val_acc"]],
+    best_EARLY_by_base[["base_id","best_val_loss","best_val_acc"]],
+    on="base_id", suffixes=("_FIXED_30E", "_EARLY")
+)
+cmp["delta_loss"] = cmp["best_val_loss_EARLY"] - cmp["best_val_loss_FIXED_30E"]  # negative ⇒ EARLY better
+cmp["delta_acc"]  = cmp["best_val_acc_EARLY"]  - cmp["best_val_acc_FIXED_30E"]   # positive ⇒ EARLY better
+
+CMP_CSV = ROOT / "compare_per_base_FIXED_30E_vs_EARLY.csv"
+cmp.to_csv(CMP_CSV, index=False)
+print(f"\n[Saved] Per-base comparison table: {CMP_CSV}")
+
+# --------------------------- Explicit-regularization summary — TEXT ONLY ---------------------------
+def summarize_explicit_regularization(df: pd.DataFrame, label: str):
+    """
+    For each base_id, compare best trial vs baseline (dropout=0, weight_decay=0) if present.
+    Prints counts and mean Δloss (negative ⇒ regularization helped).
+    """
+    rows = []
+    for base_id, g in df.groupby("base_id", sort=False):
+        g = g.sort_values(["best_val_loss","best_val_acc"], ascending=[True,False]).reset_index(drop=True)
+        best = g.iloc[0]
+        base0 = g[(g["dropout"] == 0.0) & (g["weight_decay"] == 0.0)]
+        if len(base0) > 0:
+            base0 = base0.sort_values(["best_val_loss","best_val_acc"], ascending=[True,False]).iloc[0]
+            delta = best["best_val_loss"] - base0["best_val_loss"]
+        else:
+            delta = np.nan
+        rows.append({
+            "base_id": base_id,
+            "best_val_loss": best["best_val_loss"],
+            "best_val_acc": best["best_val_acc"],
+            "best_dropout": best["dropout"],
+            "best_weight_decay": best["weight_decay"],
+            "delta_vs_no_reg": delta,
+        })
+
+    T = pd.DataFrame(rows)
+    improved = (T["delta_vs_no_reg"] < 0).sum()
+    worse    = (T["delta_vs_no_reg"] > 0).sum()
+    same     = (T["delta_vs_no_reg"] == 0).sum()
+    missing  = T["delta_vs_no_reg"].isna().sum()
+    mean_d   = T["delta_vs_no_reg"].dropna().mean()
+
+    frac_do  = (T["best_dropout"]      > 0.0).mean()
+    frac_wd  = (T["best_weight_decay"] > 0.0).mean()
+    frac_both= ((T["best_dropout"] > 0.0) & (T["best_weight_decay"] > 0.0)).mean()
+    frac_none= ((T["best_dropout"] == 0.0) & (T["best_weight_decay"] == 0.0)).mean()
+
+    print(f"\n[{label}] Explicit regularization vs (dropout=0, wd=0) baseline")
+    print(f"  Bases with (0,0) baseline available : {len(T) - missing}/{len(T)}")
+    print(f"  Helped (Δloss < 0)                  : {improved}")
+    print(f"  Hurt   (Δloss > 0)                  : {worse}")
+    print(f"  Tied   (Δloss = 0)                  : {same}")
+    print(f"  Mean Δloss (best − baseline)        : {mean_d:.6f}  (negative ⇒ regularization helped)")
+    print(f"  Best trials using dropout>0         : {frac_do:.1%}")
+    print(f"  Best trials using weight_decay>0    : {frac_wd:.1%}")
+    print(f"  Best trials using BOTH              : {frac_both:.1%}")
+    print(f"  Best trials using NEITHER           : {frac_none:.1%}")
+
+summarize_explicit_regularization(df_FIXED, "FIXED_30E (cap=30)")
+summarize_explicit_regularization(df_EARLY, "EARLY (cap=30)")
+
+# Early stopping effect — TEXT ONLY
+improved = (cmp["delta_loss"] < 0).sum()
+worse    = (cmp["delta_loss"] > 0).sum()
+same     = (cmp["delta_loss"] == 0).sum()
+print("\n[EARLY vs FIXED_30E | cap=30] Early stopping effect (best-per-base)")
+print(f"  EARLY better on      : {improved}/{len(cmp)} bases")
+print(f"  EARLY worse on       : {worse}/{len(cmp)} bases")
+print(f"  No change            : {same}/{len(cmp)} bases")
+print(f"  Mean Δ loss (EARLY − FIXED_30E): {cmp['delta_loss'].mean():.6f}")
+print(f"  Median Δ loss (EARLY − FIXED_30E): {cmp['delta_loss'].median():.6f}")
+print(f"  Mean Δ acc  (EARLY − FIXED_30E): {cmp['delta_acc'].mean():.6f}")
+
+"""### **Step 14.7 — Bidirectional LSTMs (BiLSTM) on Top-5 Configs**
+
+#### **Goal**
+Evaluate whether **bidirectionality** improves validation performance over the best unidirectional LSTM setups found so far. We create two groups and retrain **BiLSTM** models, then compare against their **NON-BiLSTM** counterparts with **overlay plots** and **validation accuracy/loss deltas**.
+
+#### **Groups**
+- **Group A (from Step 14.4)**  
+  Take the **Top-5** rows by validation loss (ties by lower final train loss).  
+  **Keep**: `rnn_size`, `num_layers`, `lr`, `batch_size`, and the **original per-row `epochs`** (all ≤ 30 in your setup).  
+  **No dropout**, **no weight decay**, **no early stopping**.  
+  Retrain as **BiLSTM** and record best-epoch by **VAL loss**.
+
+- **Group B (from Steps 14.5–14.6 combined, 30-epoch artifacts)**  
+  Take the **Top-5** rows from the combined **EARLY** + **FIXED_30E** leaderboards (sorted by best VAL loss, ties by higher VAL acc).  
+  **Keep**: `rnn_size`, `num_layers`, `lr`, `batch_size`, `dropout`, `weight_decay`, `regime`.  
+  **Regime behavior** (bounded by 30 epochs):
+  - If `regime == EARLY`: early stopping on VAL loss (`patience=3`, `min_delta=1e-4`) up to **30** epochs.  
+  - If `regime == FIXED_30E`: exactly **30** epochs, **no** early stopping.
+
+#### **Training Details (BiLSTM)**
+- **Model**: LSTM with `bidirectional=True`; time pooling = **concat(last forward, first backward)**; post-RNN dropout active according to the row’s `dropout` (Group B) or `0.0` (Group A).  
+- **Optimizer**: AdamW (LR from the selected row; `weight_decay` from row in Group B; `0.0` in Group A).  
+- **Selection**: Save **best epoch by VAL loss** (store `best_val_loss`, `best_val_acc`, `best_epoch`, and full `history` with TRAIN/VAL curves).
+
+#### **Figures produced**
+
+##### **BiLSTM curves only (per group):**
+1. `Step07_bilstm_from14_4/Step 7 - From14.4 BEST (Train+Val).png`  
+2. `Step07_bilstm_from14_4/Step 7 - From14.4 WORST (Train+Val).png`  
+3. `Step07_bilstm_from14_6/Step 7 - From14.6 BEST (Train+Val).png`  
+4. `Step07_bilstm_from14_6/Step 7 - From14.6 WORST (Train+Val).png`
+
+##### **Combined BiLSTM overlays (A vs B):**
+5. `Step07_bilstm_combined/Step 7 - Combined BESTs (Train+Val).png`  
+6. `Step07_bilstm_combined/Step 7 - Combined WORSTS (Train+Val).png`  
+7. `Step07_bilstm_combined/Step 7 - Combined ABS BEST vs ABS WORST (Train+Val).png`
+
+##### **BiLSTM vs NON-BiLSTM overlays (per group):**
+8.  `Step07_compare_bilstm_vs_lstm/GroupA - BiLSTM vs LSTM (BEST).png`  
+9.  `Step07_compare_bilstm_vs_lstm/GroupA - BiLSTM vs LSTM (WORST).png`  
+10. `Step07_compare_bilstm_vs_lstm/GroupB - BiLSTM vs LSTM (BEST).png`  
+11. `Step07_compare_bilstm_vs_lstm/GroupB - BiLSTM vs LSTM (WORST).png`
+
+##### **Tabular summary**
+- `Step07_compare_bilstm_vs_lstm/validation_accuracy_comparison.csv`  
+  (Contains `val_acc`/`val_loss` for BiLSTM and matched NON-BiLSTM, plus deltas `Bi−LSTM`.)
+
+> **Overlay logic & robustness:**  
+> For older 14.1–14.3 checkpoints that may lack per-epoch VAL in their `history`, VAL curves are back-filled from the **Step 14.4** JSON (`val_curve`, `val_acc_curve`). If still unavailable, the plot draws a dashed **VAL best** horizontal line for the NON-BiLSTM.
+
+#### **What this step answers**
+- **Does bidirectionality help?**  
+  Direct **delta tables** and **overlay plots** show whether BiLSTM improves **VAL accuracy** and/or **reduces VAL loss**.
+- **Consistency across regimes:**  
+  Compare **BiLSTM trained from 14.4** vs **BiLSTM trained from 14.5–14.6** (with/without early stopping and explicit regularization).
+- **Extremes & stability:**  
+  Examine best/worst behaviors and how TRAIN vs VAL losses evolve across epochs.
+
+
+"""
+
+# ==============================================================
+# STEP 14.7 — Bidirectional LSTMs (BiLSTM) on Top-5 Configs
+#   • Group A (from 14.4): pick TOP-5 by val loss, retrain as BiLSTM
+#       - Keep: rnn_size, num_layers, lr, batch_size, epochs (no dropout/L2, no early stop)
+#         NOTE: 14.4 already used ≤30 epochs in your setup; we keep the original per-row epoch count
+#               so IDs match the 14.4 leaderboard (consistency for overlays/comparisons).
+#   • Group B (from 14.5–14.6 combined): pick TOP-5, retrain as BiLSTM
+#       - Keep: rnn_size, num_layers, lr, batch_size, dropout, weight_decay, regime
+#       - If regime == 'EARLY'      : early stopping (patience=3, min_delta=1e-4), up to 30 epochs
+#       - If regime == 'FIXED_30E'  : exactly 30 epochs (no early stopping)
+#
+#   • Compare BiLSTM vs NON-BiLSTM with overlay diagrams and printed validation accuracies:
+#         - Group A: overlay BEST and WORST BiLSTM vs their NON-BiLSTM counterparts from 14.4
+#         - Group B: overlay BEST and WORST BiLSTM vs their NON-BiLSTM counterparts from 14.5–14.6
+#   • Print concise tables with val_acc (and val_loss) deltas (BiLSTM − NON-BiLSTM).
+#
+#   Plots:
+#     1) Group A best & worst (BiLSTM curves)
+#     2) Group B best & worst (BiLSTM curves)
+#     3) Combined: Best-vs-Best (A vs B), Worst-vs-Worst (A vs B),
+#                  and Absolute BEST vs Absolute WORST across both groups
+#     4) BiLSTM vs NON-BiLSTM overlays for BEST and WORST in each group
+# ==============================================================
+
+import os, json, math, glob, numpy as np, random, torch
+import torch.nn as nn
+from torch.utils.data import DataLoader
+from pathlib import Path
+from tqdm.auto import tqdm
+import pandas as pd
+import matplotlib.pyplot as plt
+
+# --------------------------- Sanity checks ---------------------------
+assert 'trainset' in globals() and 'valset' in globals(), \
+    "Run the Step-14 Preparatory Cell first (must define trainset/valset)."
+
+# Infer input feature dimension from your SeqDataset tensors
+INPUT_DIM   = int(trainset.x.shape[-1])
+NUM_CLASSES = 10
+
+# Artifacts from previous steps
+CKPT_DIR_14_4    = Path("Step14_checkpoints_train_only")
+LEADERBOARD_14_4 = CKPT_DIR_14_4 / "leaderboard_with_val.json"
+assert LEADERBOARD_14_4.is_file(), f"Missing Step 14.4 leaderboard: {LEADERBOARD_14_4}"
+
+# === CHANGED: read 14.5–14.6 results from the 30-epoch directory and names ===
+ROOT_14_6  = Path("Step14_reg_top30_compare_30ep")
+LB_FIXED   = ROOT_14_6 / "leaderboard_FIXED_30E.json"
+LB_EARLY   = ROOT_14_6 / "leaderboard_EARLY.json"
+assert LB_FIXED.is_file() or LB_EARLY.is_file(), "Missing Step 14.5–14.6 leaderboards (30-epoch)."
+
+# --------------------------- Selection knobs & outputs ---------------------------
+TOP_K = 5  # pick the 5 best rows per source
+
+OUT_14_4 = Path("Step07_bilstm_from14_4"); OUT_14_4.mkdir(parents=True, exist_ok=True)
+OUT_14_6 = Path("Step07_bilstm_from14_6"); OUT_14_6.mkdir(parents=True, exist_ok=True)
+COMBO_OUT = Path("Step07_bilstm_combined"); COMBO_OUT.mkdir(parents=True, exist_ok=True)
+CMP_OUT   = Path("Step07_compare_bilstm_vs_lstm"); CMP_OUT.mkdir(parents=True, exist_ok=True)
+
+LB_14_4_JSON = OUT_14_4 / "leaderboard_bilstm_from14_4.json"
+LB_14_6_JSON = OUT_14_6 / "leaderboard_bilstm_from14_6.json"
+
+PLOT_14_4_BEST  = OUT_14_4 / "Step 7 - From14.4 BEST (Train+Val).png"
+PLOT_14_4_WORST = OUT_14_4 / "Step 7 - From14.4 WORST (Train+Val).png"
+PLOT_14_6_BEST  = OUT_14_6 / "Step 7 - From14.6 BEST (Train+Val).png"
+PLOT_14_6_WORST = OUT_14_6 / "Step 7 - From14.6 WORST (Train+Val).png"
+
+PLOT_BESTS   = COMBO_OUT / "Step 7 - Combined BESTs (Train+Val).png"
+PLOT_WORSTS  = COMBO_OUT / "Step 7 - Combined WORSTS (Train+Val).png"
+PLOT_ABS_BvW = COMBO_OUT / "Step 7 - Combined ABS BEST vs ABS WORST (Train+Val).png"
+
+# NEW: overlay comparisons (BiLSTM vs NON-BiLSTM) per group
+CMP_PLOT_A_BEST  = CMP_OUT / "GroupA - BiLSTM vs LSTM (BEST).png"
+CMP_PLOT_A_WORST = CMP_OUT / "GroupA - BiLSTM vs LSTM (WORST).png"
+CMP_PLOT_B_BEST  = CMP_OUT / "GroupB - BiLSTM vs LSTM (BEST).png"
+CMP_PLOT_B_WORST = CMP_OUT / "GroupB - BiLSTM vs LSTM (WORST).png"
+CMP_SUMMARY_CSV  = CMP_OUT / "validation_accuracy_comparison.csv"
+
+# --------------------------- Utilities ---------------------------
+def make_loaders(bs: int):
+    """Build TRAIN & VAL loaders for a given batch size."""
+    train_loader = DataLoader(trainset, batch_size=bs, shuffle=True,  drop_last=False)
+    val_loader   = DataLoader(valset,   batch_size=bs, shuffle=False, drop_last=False)
+    return train_loader, val_loader
+
+def lr_token(lr: float) -> str:
+    """Filename-safe token for learning rate."""
+    return f"{lr:.0e}".replace("+","")
+
+def base_id_14_4(rnn_size: int, num_layers: int, batch_size: int, epochs: int, lr: float) -> str:
+    """Stable id for 14.4-style rows (no dropout/L2)."""
+    return f"r{rnn_size}_L{num_layers}_bs{batch_size}_e{epochs}_lr{lr_token(lr)}"
+
+def base_id_14_6(rnn_size: int, num_layers: int, batch_size: int, lr: float,
+                 dropout: float, weight_decay: float, regime: str) -> str:
+    """Stable id for 14.6-style rows (with dropout/L2 and regime)."""
+    return (f"{regime}_r{rnn_size}_L{num_layers}_bs{batch_size}_lr{lr_token(lr)}"
+            f"_do{dropout:.2f}_wd{weight_decay:.0e}").replace("+","")
+
+# Reproducibility (offset seed so BiLSTM runs are distinct but deterministic)
+GLOBAL_SEED = 0
+np.random.seed(GLOBAL_SEED); random.seed(GLOBAL_SEED); torch.manual_seed(GLOBAL_SEED)
+
+def seed_for_bilstm_trial(*, rnn_size: int, num_layers: int, batch_size: int, lr: float,
+                          epochs_cap: int, dropout: float = 0.0, weight_decay: float = 0.0) -> int:
+    """Deterministic per-trial seed. +1009 offset marks BiLSTM experiments."""
+    return (GLOBAL_SEED
+            + 1009
+            + rnn_size * 3
+            + num_layers * 5
+            + batch_size * 7
+            + int(lr * 1e6) * 11
+            + epochs_cap * 13
+            + int(dropout * 1000) * 17
+            + int(weight_decay * 1e6) * 19)
+
+def plot_curves(history, title: str, out_path: Path):
+    """Plot TRAIN & VAL loss curves in the same figure, save, and show."""
+    plt.figure(figsize=(7.6, 4.6), dpi=120)
+    plt.plot(range(1, len(history.get("train", []))+1), history.get("train", []), marker="o", label="train")
+    plt.plot(range(1, len(history.get("val",   []))+1), history.get("val",   []), marker="^", label="val")
+    plt.xlabel("Epoch"); plt.ylabel("Loss"); plt.title(title)
+    plt.grid(True, linewidth=0.5, alpha=0.6); plt.legend(); plt.tight_layout()
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    plt.savefig(out_path); plt.show()
+
+def plot_overlay_two_models(hist_A, label_A, hist_B, label_B, title, outfile):
+    """Overlay TRAIN/VAL curves for two models (A solid, B dashed)."""
+    epochs_A = range(1, len(hist_A.get("train", [])) + 1)
+    epochs_B = range(1, len(hist_B.get("train", [])) + 1)
+
+    plt.figure(figsize=(8.4, 5.0), dpi=120)
+    if len(hist_A.get("train", [])) > 0:
+        plt.plot(epochs_A, hist_A["train"], marker="o", linestyle="-",  label=f"{label_A} — train")
+    if len(hist_A.get("val", [])) > 0:
+        plt.plot(epochs_A, hist_A["val"],   marker="^", linestyle="-",  label=f"{label_A} — val")
+    if len(hist_B.get("train", [])) > 0:
+        plt.plot(epochs_B, hist_B["train"], marker="s", linestyle="--", label=f"{label_B} — train")
+    if len(hist_B.get("val", [])) > 0:
+        plt.plot(epochs_B, hist_B["val"],   marker="v", linestyle="--", label=f"{label_B} — val")
+    plt.xlabel("Epoch"); plt.ylabel("Loss"); plt.title(title)
+    plt.grid(True, linewidth=0.5, alpha=0.6); plt.legend(); plt.tight_layout()
+    outfile.parent.mkdir(parents=True, exist_ok=True)
+    plt.savefig(outfile); plt.show()
+
+# --------------------------- Models & loops ---------------------------
+class BiLSTMClassifier(nn.Module):
+    """
+    Bidirectional LSTM classifier:
+      • LSTM stack (bidirectional=True)
+      • Intra-stack dropout active only if num_layers > 1 (PyTorch semantics)
+      • Post-LSTM dropout before classifier (always applied)
+      • Time pooling: concat(last forward, first backward)
+    """
+    def __init__(self, input_dim: int, hidden: int, num_layers: int,
+                 num_classes: int, dropout_p: float):
+        super().__init__()
+        self.lstm = nn.LSTM(
+            input_size=input_dim,
+            hidden_size=hidden,
+            num_layers=num_layers,
+            batch_first=True,
+            bidirectional=True,
+            dropout=(dropout_p if num_layers > 1 else 0.0),
+        )
+        out_dim = hidden * 2
+        self.post_dropout = nn.Dropout(dropout_p)
+        self.fc = nn.Linear(out_dim, num_classes)
+
+    @staticmethod
+    def _last_valid(outputs: torch.Tensor, lengths: torch.Tensor) -> torch.Tensor:
+        idx = (lengths - 1).view(-1, 1, 1).expand(outputs.size(0), 1, outputs.size(2))
+        return outputs.gather(1, idx).squeeze(1)
+
+    @staticmethod
+    def _first(outputs: torch.Tensor) -> torch.Tensor:
+        return outputs[:, 0, :]
+
+    def forward(self, x, lengths):
+        y, _ = self.lstm(x)          # (N, L, 2H)
+        H = y.size(-1) // 2
+        fw = y[:, :, :H]
+        bw = y[:, :, H:]
+        last_fw  = self._last_valid(fw, lengths)
+        first_bw = self._first(bw)
+        pooled = torch.cat([last_fw, first_bw], dim=-1)
+        return self.fc(self.post_dropout(pooled))
+
+def train_epoch(model: nn.Module, loader, opt, crit) -> float:
+    """One training epoch over TRAIN: returns average loss."""
+    model.train()
+    tot, n = 0.0, 0
+    for xb, yb, lb in loader:
+        opt.zero_grad(set_to_none=True)
+        logits = model(xb, lb)
+        loss   = crit(logits, yb)
+        loss.backward()
+        opt.step()
+        tot += loss.item() * yb.size(0)
+        n   += yb.size(0)
+    return float(tot / max(1, n))
+
+@torch.no_grad()
+def eval_epoch(model: nn.Module, loader, crit):
+    """One validation epoch: returns (avg loss, accuracy)."""
+    model.eval()
+    tot, n, correct = 0.0, 0, 0
+    for xb, yb, lb in loader:
+        logits = model(xb, lb)
+        loss   = crit(logits, yb)
+        tot += loss.item() * yb.size(0)
+        n   += yb.size(0)
+        pred = logits.argmax(dim=1)
+        correct += (pred == yb).sum().item()
+    return float(tot / max(1, n)), float(correct / max(1, n))
+
+class EarlyStopping:
+    """Stop if val_loss fails to improve by MIN_DELTA for PATIENCE epochs."""
+    def __init__(self, patience: int, min_delta: float = 0.0):
+        self.patience   = patience
+        self.min_delta  = min_delta
+        self.best       = math.inf
+        self.bad_epochs = 0
+    def step(self, current: float) -> bool:
+        improved = (self.best - current) > self.min_delta
+        if improved:
+            self.best = current
+            self.bad_epochs = 0
+            return False
+        self.bad_epochs += 1
+        return self.bad_epochs >= self.patience
+
+# --------------------------- Load ALL rows from Step 14.4 (for fallbacks) ---------------------------
+rows_14_4_all = json.loads(LEADERBOARD_14_4.read_text())
+df_14_4 = (pd.DataFrame(rows_14_4_all)
+           .sort_values(["val_loss", "final_train_loss"], ascending=[True, True])
+           .reset_index(drop=True))
+
+# Build quick-access maps for per-epoch VAL fallbacks (when old 14.1–14.3 checkpoints lack val history)
+VALCURVE_BY_CKPT  = {}
+VALACC_BY_CKPT    = {}
+for r in rows_14_4_all:
+    ck = str(r.get("checkpoint", ""))
+    if ck:
+        if isinstance(r.get("val_curve", None), list):
+            VALCURVE_BY_CKPT[ck] = r["val_curve"]
+        if isinstance(r.get("val_acc_curve", None), list):
+            VALACC_BY_CKPT[ck] = r["val_acc_curve"]
+
+# Keep the TOP-K slice for Group A training
+top_14_4 = df_14_4.head(min(TOP_K, len(df_14_4))).copy()
+print(f"[Step 7] Selected {len(top_14_4)} best configs from Step 14.4.")
+
+# --------------------------- Load TOP-5 combined from Steps 14.5–14.6 (30-epoch) ---------------------------
+def _safe_load(p: Path):
+    return json.loads(p.read_text()) if p.is_file() else []
+
+rows_14_6 = _safe_load(LB_FIXED) + _safe_load(LB_EARLY)
+assert len(rows_14_6) > 0, "No rows found from Steps 14.5–14.6 combined (30-epoch)."
+df_14_6 = (pd.DataFrame(rows_14_6)
+           .sort_values(["best_val_loss", "best_val_acc"], ascending=[True, False])
+           .reset_index(drop=True))
+top_14_6 = df_14_6.head(min(TOP_K, len(df_14_6))).copy()
+print(f"[Step 7] Selected {len(top_14_6)} best configs from Steps 14.5–14.6 combined.")
+
+# ==============================================================
+# Part A — Retrain top-14.4 configs as BiLSTM (no dropout/L2, no early stop)
+#   (Keep original per-row epoch count to maintain ID compatibility with 14.4)
+# ==============================================================
+
+all_rows_14_4 = []
+for i, row in top_14_4.iterrows():
+    # Base hyperparameters (keep as-is)
+    rnn_size   = int(row["rnn_size"])
+    num_layers = int(row["num_layers"])
+    batch_size = int(row["batch_size"])
+    epochs_cap = int(row["epochs"])          # keep original (all ≤ 30)
+    lr         = float(row["lr"])
+    base_id    = base_id_14_4(rnn_size, num_layers, batch_size, epochs_cap, lr)
+
+    # Seed for reproducibility
+    seed = seed_for_bilstm_trial(rnn_size=rnn_size, num_layers=num_layers,
+                                 batch_size=batch_size, lr=lr, epochs_cap=epochs_cap)
+    np.random.seed(seed); random.seed(seed); torch.manual_seed(seed)
+
+    # Data, model, optimizer, criterion
+    train_loader, val_loader = make_loaders(batch_size)
+    model = BiLSTMClassifier(INPUT_DIM, rnn_size, num_layers, NUM_CLASSES, dropout_p=0.0)
+    optim = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=0.0)
+    crit  = nn.CrossEntropyLoss()
+
+    # Book-keeping
+    history  = {"train": [], "val": [], "val_acc": []}
+    best_obj = None
+    ckpt_dir = OUT_14_4 / base_id
+    ckpt_dir.mkdir(parents=True, exist_ok=True)
+    ckpt_path = ckpt_dir / f"best_BiLSTM_{base_id}.pt"
+
+    # Train for the original epochs count (≤30; no early stopping)
+    pbar = tqdm(range(1, epochs_cap + 1), desc=f"[BiLSTM from14.4] {base_id}")
+    for ep in pbar:
+        tr = train_epoch(model, train_loader, optim, crit)
+        vl, va = eval_epoch(model, val_loader, crit)
+        history["train"].append(tr); history["val"].append(vl); history["val_acc"].append(va)
+        pbar.set_postfix_str(f"train={tr:.4f} val={vl:.4f} acc={va:.4f}")
+
+        # Keep best by validation loss
+        if (best_obj is None) or (vl < best_obj["best_val_loss"] - 0.0):
+            best_obj = {
+                "model_state": model.state_dict(),
+                "meta": {"input_dim": INPUT_DIM, "num_classes": NUM_CLASSES,
+                         "rnn_size": rnn_size, "num_layers": num_layers,
+                         "batch_size": batch_size, "epochs_cap": epochs_cap,
+                         "lr": lr, "dropout": 0.0, "weight_decay": 0.0,
+                         "bidirectional": True, "source": "from14.4"},
+                "history": {k: v[:] for k, v in history.items()},
+                "best_val_loss": vl, "best_val_acc": va, "best_epoch": ep,
+                "seed": seed, "base_id": base_id,
+            }
+
+    # Save best checkpoint and add to leaderboard
+    assert best_obj is not None
+    torch.save(best_obj, ckpt_path)
+    all_rows_14_4.append({
+        "base_id": base_id, "rnn_size": rnn_size, "num_layers": num_layers,
+        "batch_size": batch_size, "epochs_cap": epochs_cap, "lr": lr,
+        "dropout": 0.0, "weight_decay": 0.0,
+        "best_val_loss": float(best_obj["best_val_loss"]),
+        "best_val_acc": float(best_obj["best_val_acc"]),
+        "best_epoch": int(best_obj["best_epoch"]),
+        "checkpoint": str(ckpt_path),
+    })
+
+# Build leaderboard + plots for Part A
+df_bi_14_4 = pd.DataFrame(all_rows_14_4).sort_values(
+    ["best_val_loss", "best_val_acc"], ascending=[True, False]
+).reset_index(drop=True)
+with open(LB_14_4_JSON, "w") as f: json.dump(df_bi_14_4.to_dict(orient="records"), f, indent=2)
+
+# Overall best & worst plots (Group A, BiLSTM only)
+best_row_A = df_bi_14_4.iloc[0]; worst_row_A = df_bi_14_4.iloc[-1]
+best_blob_A = torch.load(Path(best_row_A["checkpoint"]), map_location="cpu")
+worst_blob_A = torch.load(Path(worst_row_A["checkpoint"]), map_location="cpu")
+plot_curves(best_blob_A["history"],
+            f"Step 7 — From14.4 BEST (BiLSTM): {best_row_A['base_id']}\n"
+            f"val_loss={best_row_A['best_val_loss']:.4f}, val_acc={best_row_A['best_val_acc']:.4f}, "
+            f"best_epoch={best_row_A['best_epoch']}/{best_row_A['epochs_cap']}",
+            PLOT_14_4_BEST)
+plot_curves(worst_blob_A["history"],
+            f"Step 7 — From14.4 WORST (BiLSTM): {worst_row_A['base_id']}\n"
+            f"val_loss={worst_row_A['best_val_loss']:.4f}, val_acc={worst_row_A['best_val_acc']:.4f}, "
+            f"best_epoch={worst_row_A['best_epoch']}/{worst_row_A['epochs_cap']}",
+            PLOT_14_4_WORST)
+
+print("\n[Step 7] From 14.4 — BEST (BiLSTM):");  print(best_row_A.to_dict())
+print("\n[Step 7] From 14.4 — WORST (BiLSTM):"); print(worst_row_A.to_dict())
+
+# ==============================================================
+# Part B — Retrain top-14.5–14.6 (combined) as BiLSTM (regime-aware)
+#   CHANGED: cap all runs to 30 epochs; FIXED label is 'FIXED_30E'
+# ==============================================================
+
+PATIENCE  = 3
+MIN_DELTA = 1e-4
+EPOCHS_MAX = 30
+
+all_rows_14_6 = []
+for i, row in top_14_6.iterrows():
+    rnn_size    = int(row["rnn_size"])
+    num_layers  = int(row["num_layers"])
+    batch_size  = int(row["batch_size"])
+    lr          = float(row["lr"])
+    dropout     = float(row.get("dropout", 0.0))
+    weight_decay= float(row.get("weight_decay", 0.0))
+    # Default regime to FIXED_30E if missing (30-epoch artifacts)
+    regime      = str(row.get("regime", "FIXED_30E")).replace("FIXED_50E", "FIXED_30E")
+    base_id     = base_id_14_6(rnn_size, num_layers, batch_size, lr, dropout, weight_decay, regime)
+
+    # Seed (distinct but deterministic)
+    seed = seed_for_bilstm_trial(rnn_size=rnn_size, num_layers=num_layers,
+                                 batch_size=batch_size, lr=lr, epochs_cap=EPOCHS_MAX,
+                                 dropout=dropout, weight_decay=weight_decay)
+    np.random.seed(seed); random.seed(seed); torch.manual_seed(seed)
+
+    # Data, model, optimizer, criterion
+    train_loader, val_loader = make_loaders(batch_size)
+    model = BiLSTMClassifier(INPUT_DIM, rnn_size, num_layers, NUM_CLASSES, dropout_p=dropout)
+    optim = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
+    crit  = nn.CrossEntropyLoss()
+
+    stopper  = EarlyStopping(PATIENCE, MIN_DELTA) if regime == "EARLY" else None
+    history  = {"train": [], "val": [], "val_acc": []}
+    best_obj = None
+
+    ckpt_dir  = OUT_14_6 / base_id
+    ckpt_dir.mkdir(parents=True, exist_ok=True)
+    ckpt_path = ckpt_dir / f"best_BiLSTM_{base_id}.pt"
+
+    # Train: regime-aware (both bounded by 30 epochs)
+    pbar = tqdm(range(1, EPOCHS_MAX + 1), desc=f"[BiLSTM from14.6] {base_id}")
+    for ep in pbar:
+        tr = train_epoch(model, train_loader, optim, crit)
+        vl, va = eval_epoch(model, val_loader, crit)
+        history["train"].append(tr); history["val"].append(vl); history["val_acc"].append(va)
+        pbar.set_postfix_str(f"train={tr:.4f} val={vl:.4f} acc={va:.4f}")
+
+        # Keep best by validation loss
+        if (best_obj is None) or (vl < best_obj["best_val_loss"] - 0.0):
+            best_obj = {
+                "model_state": model.state_dict(),
+                "meta": {"input_dim": INPUT_DIM, "num_classes": NUM_CLASSES,
+                         "rnn_size": rnn_size, "num_layers": num_layers,
+                         "batch_size": batch_size, "epochs_cap": EPOCHS_MAX,
+                         "lr": lr, "dropout": dropout, "weight_decay": weight_decay,
+                         "bidirectional": True, "source": "from14.6", "regime": regime},
+                "history": {k: v[:] for k, v in history.items()},
+                "best_val_loss": vl, "best_val_acc": va, "best_epoch": ep,
+                "seed": seed, "base_id": base_id,
+            }
+
+        # Early stopping if this row came from EARLY regime (≤30 epochs)
+        if (regime == "EARLY") and stopper.step(vl):
+            tqdm.write(f"[BiLSTM from14.6] EARLY stop at epoch {ep}/{EPOCHS_MAX}")
+            break
+
+    # Save best checkpoint and add to leaderboard
+    assert best_obj is not None
+    torch.save(best_obj, ckpt_path)
+    all_rows_14_6.append({
+        "base_id": base_id, "regime": regime,
+        "rnn_size": rnn_size, "num_layers": num_layers, "batch_size": batch_size, "lr": lr,
+        "dropout": dropout, "weight_decay": weight_decay,
+        "best_val_loss": float(best_obj["best_val_loss"]),
+        "best_val_acc": float(best_obj["best_val_acc"]),
+        "best_epoch": int(best_obj["best_epoch"]),
+        "epochs_cap": EPOCHS_MAX,
+        "checkpoint": str(ckpt_path),
+    })
+
+# Build leaderboard + plots for Part B
+df_bi_14_6 = pd.DataFrame(all_rows_14_6).sort_values(
+    ["best_val_loss", "best_val_acc"], ascending=[True, False]
+).reset_index(drop=True)
+with open(LB_14_6_JSON, "w") as f: json.dump(df_bi_14_6.to_dict(orient="records"), f, indent=2)
+
+# Overall best & worst plots (Group B, BiLSTM only)
+best_row_B  = df_bi_14_6.iloc[0];  worst_row_B = df_bi_14_6.iloc[-1]
+best_blob_B = torch.load(Path(best_row_B["checkpoint"]), map_location="cpu")
+worst_blob_B= torch.load(Path(worst_row_B["checkpoint"]), map_location="cpu")
+plot_curves(best_blob_B["history"],
+            f"Step 7 — From14.6 BEST (BiLSTM): {best_row_B['base_id']} ({best_row_B['regime']})\n"
+            f"val_loss={best_row_B['best_val_loss']:.4f}, val_acc={best_row_B['best_val_acc']:.4f}, "
+            f"best_epoch={best_row_B['best_epoch']}/{best_row_B['epochs_cap']}",
+            PLOT_14_6_BEST)
+plot_curves(worst_blob_B["history"],
+            f"Step 7 — From14.6 WORST (BiLSTM): {worst_row_B['base_id']} ({worst_row_B['regime']})\n"
+            f"val_loss={worst_row_B['best_val_loss']:.4f}, val_acc={worst_row_B['best_val_acc']:.4f}, "
+            f"best_epoch={worst_row_B['best_epoch']}/{worst_row_B['epochs_cap']}",
+            PLOT_14_6_WORST)
+
+print("\n[Step 7] From 14.6 — BEST (BiLSTM):");  print(best_row_B.to_dict())
+print("\n[Step 7] From 14.6 — WORST (BiLSTM):"); print(worst_row_B.to_dict())
+
+# ==============================================================
+# Combined diagrams — (1) Best-vs-Best, (2) Worst-vs-Worst, (3) Abs BEST vs Abs WORST
+# ==============================================================
+
+def _label(row, tag: str):
+    """Compact label with loss/acc and best epoch."""
+    if tag == "from14.4":
+        prefix = "from14.4"
+    else:
+        prefix = f"from14.6 ({row.get('regime','')})"
+    return f"{prefix} — loss={row['best_val_loss']:.4f} acc={row['best_val_acc']:.4f} best@{int(row['best_epoch'])}"
+
+# 1) Best-vs-Best (A vs B)
+plot_overlay_two_models(
+    hist_A=best_blob_A["history"],
+    label_A=_label(best_row_A, "from14.4"),
+    hist_B=best_blob_B["history"],
+    label_B=_label(best_row_B, "from14.6"),
+    title="Step 7 — Combined BESTs (from14.4 vs from14.6, BiLSTM)",
+    outfile=PLOT_BESTS,
+)
+
+# 2) Worst-vs-Worst (A vs B)
+plot_overlay_two_models(
+    hist_A=worst_blob_A["history"],
+    label_A=_label(worst_row_A, "from14.4"),
+    hist_B=worst_blob_B["history"],
+    label_B=_label(worst_row_B, "from14.6"),
+    title="Step 7 — Combined WORSTS (from14.4 vs from14.6, BiLSTM)",
+    outfile=PLOT_WORSTS,
+)
+
+# 3) Absolute BEST vs Absolute WORST across both groups
+both_df = pd.concat([df_bi_14_4, df_bi_14_6], ignore_index=True)
+abs_best = both_df.sort_values(["best_val_loss", "best_val_acc"], ascending=[True, False]).iloc[0]
+abs_wrst = both_df.sort_values(["best_val_loss", "best_val_acc"], ascending=[False, True]).iloc[0]
+abs_best_blob = torch.load(Path(abs_best["checkpoint"]), map_location="cpu")
+abs_wrst_blob = torch.load(Path(abs_wrst["checkpoint"]), map_location="cpu")
+
+plot_overlay_two_models(
+    hist_A=abs_best_blob["history"],
+    label_A=_label(abs_best, "from14.6" if "regime" in abs_best else "from14.4"),
+    hist_B=abs_wrst_blob["history"],
+    label_B=_label(abs_wrst, "from14.6" if "regime" in abs_wrst else "from14.4"),
+    title="Step 7 — ABSOLUTE BEST vs ABSOLUTE WORST (both groups, BiLSTM)",
+    outfile=PLOT_ABS_BvW,
+)
+
+print("\n[Combined] ABSOLUTE BEST (BiLSTM):");  print(abs_best.to_dict())
+print("\n[Combined] ABSOLUTE WORST (BiLSTM):"); print(abs_wrst.to_dict())
+
+# ==============================================================
+# BiLSTM vs NON-BiLSTM comparisons (overlays + printed accuracies)
+# ==============================================================
+
+def _try_load_pt(path: Path):
+    """Safely load a torch .pt file if it exists; else return None."""
+    try:
+        if path and Path(path).is_file():
+            return torch.load(Path(path), map_location="cpu")
+    except Exception as e:
+        tqdm.write(f"[WARN] Failed to load checkpoint: {path} ({e})")
+    return None
+
+def _match_non_bilstm_from_14_4(bilstm_row: pd.Series, top14_4_df: pd.DataFrame):
+    """
+    Find the NON-BiLSTM counterpart (from step 14.4) for a given BiLSTM row.
+    Returns (blob, row_dict_or_None) where row_dict is from the 14.4 leaderboard.
+    """
+    # base_id: r{rnn}_L{layers}_bs{bs}_e{epochs}_lr{lrtok}
+    tokens = str(bilstm_row["base_id"]).split("_")
+    rnn = int(tokens[0][1:])
+    L   = int(tokens[1][1:])
+    bs  = int(tokens[2][2:])
+    e   = int(tokens[3][1:]) if tokens[3].startswith("e") else None
+
+    cand = top14_4_df[
+        (top14_4_df["rnn_size"]==rnn) &
+        (top14_4_df["num_layers"]==L) &
+        (top14_4_df["batch_size"]==bs)
+    ]
+    if e is not None and "epochs" in top14_4_df.columns:
+        cand = cand[cand["epochs"]==e]
+    if cand.empty:
+        return None, None
+    base_row = cand.iloc[0].to_dict()
+
+    ck = base_row.get("checkpoint", None)
+    blob = _try_load_pt(Path(ck)) if ck else None
+    if blob is not None:
+        return blob, base_row
+
+    # Fallback: scan .pt files and match meta
+    pt_files = glob.glob(str(CKPT_DIR_14_4 / "**/*.pt"), recursive=True)
+    for p in pt_files:
+        B = _try_load_pt(Path(p))
+        if B is None:
+            continue
+        meta = B.get("meta", {})
+        if (meta.get("bidirectional", False) is False and
+            int(meta.get("rnn_size", -1)) == rnn and
+            int(meta.get("num_layers", -1)) == L and
+            int(meta.get("batch_size", -1)) == bs and
+            float(meta.get("lr", -1.0)) == float(base_row["lr"])):
+            return B, base_row
+
+    return None, base_row  # row found but blob missing
+
+def _non_bilstm_from_14_6_row(bilstm_row: pd.Series, top14_6_df: pd.DataFrame):
+    """
+    Find the NON-BiLSTM counterpart for a 14.6 BiLSTM row by base_id.
+    The 14.6 leaderboards include 'checkpoint' paths → direct load.
+    """
+    base_id = str(bilstm_row["base_id"])
+    regime = base_id.split("_")[0]
+    matches = top14_6_df[
+        (top14_6_df["regime"]==bilstm_row.get("regime", regime)) &
+        (top14_6_df["rnn_size"]==bilstm_row["rnn_size"]) &
+        (top14_6_df["num_layers"]==bilstm_row["num_layers"]) &
+        (top14_6_df["batch_size"]==bilstm_row["batch_size"]) &
+        (top14_6_df["lr"]==bilstm_row["lr"]) &
+        (top14_6_df["dropout"]==bilstm_row.get("dropout", 0.0)) &
+        (top14_6_df["weight_decay"]==bilstm_row.get("weight_decay", 0.0))
+    ]
+    if matches.empty:
+        return None, None
+    row = matches.iloc[0].to_dict()
+    blob = _try_load_pt(Path(row.get("checkpoint", "")))
+    return blob, row
+
+def _overlay_bilstm_vs_lstm(bilstm_blob, lstm_blob, title, outfile, lstm_ckpt_path=None):
+    """
+    Overlay curves of BiLSTM (solid) vs NON-BiLSTM (dashed), with robust fallbacks
+    for old 14.1–14.3 checkpoints that lack per-epoch VAL in their history.
+    """
+    if (bilstm_blob is None) or (lstm_blob is None):
+        tqdm.write(f"[WARN] Skipping overlay (missing blob) for: {title}")
+        return
+
+    H_bi = bilstm_blob.get("history", {})
+    H_ls = lstm_blob.get("history", {})
+
+    bi_train = H_bi.get("train", [])
+    bi_val   = H_bi.get("val",   [])
+
+    # LSTM side: prefer checkpoint history; else fallback to Step 14.4 leaderboard curves
+    ls_train = H_ls.get("train", lstm_blob.get("train_losses", lstm_blob.get("losses", [])))
+    ls_val   = H_ls.get("val", None)
+    if (ls_val is None or len(ls_val) == 0) and lstm_ckpt_path:
+        vcurve = VALCURVE_BY_CKPT.get(str(lstm_ckpt_path), None)
+        if isinstance(vcurve, list) and len(vcurve) > 0:
+            ls_val = vcurve
+
+    # Last fallback: draw a horizontal line at "best" val if we have no per-epoch curve
+    ls_val_best = None
+    if (ls_val is None or len(ls_val) == 0):
+        if "best_val_loss" in lstm_blob:
+            ls_val_best = float(lstm_blob["best_val_loss"])
+
+    # --- Plot ---
+    plt.figure(figsize=(8.6, 5.0), dpi=120)
+    if len(bi_train) > 0: plt.plot(range(1, len(bi_train)+1), bi_train, marker="o", linestyle="-",  label="BiLSTM — train")
+    if len(bi_val)   > 0: plt.plot(range(1, len(bi_val)+1),   bi_val,   marker="^", linestyle="-",  label="BiLSTM — val")
+
+    if len(ls_train) > 0: plt.plot(range(1, len(ls_train)+1), ls_train, marker="s", linestyle="--", label="LSTM — train")
+    if ls_val is not None and len(ls_val) > 0:
+        plt.plot(range(1, len(ls_val)+1),   ls_val,   marker="v", linestyle="--", label="LSTM — val")
+    elif ls_val_best is not None:
+        xmax = max(len(bi_train), len(bi_val), len(ls_train), 1)
+        plt.hlines(ls_val_best, xmin=1, xmax=max(1, xmax), linestyles="--", label=f"LSTM — val (best={ls_val_best:.4f})")
+
+    plt.xlabel("Epoch"); plt.ylabel("Loss"); plt.title(title)
+    plt.grid(True, linewidth=0.5, alpha=0.6); plt.legend(); plt.tight_layout()
+    outfile.parent.mkdir(parents=True, exist_ok=True)
+    plt.savefig(outfile); plt.show()
+
+# ---------- Accuracy/Loss extraction with fallbacks ----------
+def _acc_loss_from(blob, row_from_14_4: dict | None = None):
+    """
+    Extract best (val_acc, val_loss) pair.
+    Priority:
+      1) blob['best_val_acc'], blob['best_val_loss'] if present
+      2) min over blob['history']['val'] (and aligned val_acc at argmin) if present
+      3) for 14.4 rows: min over row_from_14_4['val_curve'] and aligned row_from_14_4['val_acc_curve'] if present
+      4) else (None, None)
+    """
+    if blob is not None:
+        if ("best_val_acc" in blob) and ("best_val_loss" in blob):
+            return float(blob["best_val_acc"]), float(blob["best_val_loss"])
+        H = blob.get("history", {})
+        if isinstance(H.get("val", None), list) and len(H["val"]) > 0:
+            v = np.array(H["val"], dtype=float)
+            idx = int(np.argmin(v))
+            acc = None
+            if isinstance(H.get("val_acc", None), list) and len(H["val_acc"]) == len(H["val"]):
+                acc = float(H["val_acc"][idx])
+            return acc, float(v[idx])
+
+    if row_from_14_4 is not None:
+        vcurve = row_from_14_4.get("val_curve", None)
+        if isinstance(vcurve, list) and len(vcurve) > 0:
+            v = np.array(vcurve, dtype=float)
+            idx = int(np.argmin(v))
+            acc_curve = row_from_14_4.get("val_acc_curve", None)
+            acc = None
+            if isinstance(acc_curve, list) and len(acc_curve) == len(vcurve):
+                acc = float(acc_curve[idx])
+            return acc, float(v[idx])
+
+    return None, None
+
+# ---------- Build NON-BiLSTM vs BiLSTM comparisons and print accuracy deltas ----------
+
+cmp_rows = []  # accumulate summary rows for a CSV/print at the end
+
+# Group A: match BEST and WORST BiLSTM back to 14.4 NON-BiLSTM counterparts
+best_row_A = df_bi_14_4.iloc[0]; worst_row_A = df_bi_14_4.iloc[-1]
+best_lstm_A, best_base_A   = _match_non_bilstm_from_14_4(best_row_A, df_14_4)
+worst_lstm_A, worst_base_A = _match_non_bilstm_from_14_4(worst_row_A, df_14_4)
+
+_overlay_bilstm_vs_lstm(best_blob_A, best_lstm_A,
+                        "Group A (from14.4) — BEST: BiLSTM vs LSTM",
+                        CMP_PLOT_A_BEST,
+                        lstm_ckpt_path=(best_base_A.get("checkpoint") if best_base_A else None))
+_overlay_bilstm_vs_lstm(worst_blob_A, worst_lstm_A,
+                        "Group A (from14.4) — WORST: BiLSTM vs LSTM",
+                        CMP_PLOT_A_WORST,
+                        lstm_ckpt_path=(worst_base_A.get("checkpoint") if worst_base_A else None))
+
+# Collect accuracy/loss summaries for prints — Group A
+bi_acc, bi_loss = _acc_loss_from(best_blob_A)
+ls_acc, ls_loss = _acc_loss_from(best_lstm_A, best_base_A)
+cmp_rows.append({
+    "group": "A (from14.4)", "which": "BEST",
+    "val_acc_LSTM": ls_acc, "val_loss_LSTM": ls_loss,
+    "val_acc_BiLSTM": bi_acc, "val_loss_BiLSTM": bi_loss,
+    "delta_acc (Bi−LSTM)": (None if (bi_acc is None or ls_acc is None) else float(bi_acc - ls_acc)),
+    "delta_loss (Bi−LSTM)": (None if (bi_loss is None or ls_loss is None) else float(bi_loss - ls_loss)),
+})
+
+bi_acc, bi_loss = _acc_loss_from(worst_blob_A)
+ls_acc, ls_loss = _acc_loss_from(worst_lstm_A, worst_base_A)
+cmp_rows.append({
+    "group": "A (from14.4)", "which": "WORST",
+    "val_acc_LSTM": ls_acc, "val_loss_LSTM": ls_loss,
+    "val_acc_BiLSTM": bi_acc, "val_loss_BiLSTM": bi_loss,
+    "delta_acc (Bi−LSTM)": (None if (bi_acc is None or ls_acc is None) else float(bi_acc - ls_acc)),
+    "delta_loss (Bi−LSTM)": (None if (bi_loss is None or ls_loss is None) else float(bi_loss - ls_loss)),
+})
+
+# Group B: match BEST and WORST BiLSTM back to 14.6 NON-BiLSTM counterparts (30-epoch artifacts)
+best_row_B  = df_bi_14_6.iloc[0];  worst_row_B = df_bi_14_6.iloc[-1]
+best_lstm_B, best_base_B   = _non_bilstm_from_14_6_row(best_row_B, top_14_6)
+worst_lstm_B, worst_base_B = _non_bilstm_from_14_6_row(worst_row_B, top_14_6)
+
+_overlay_bilstm_vs_lstm(best_blob_B, best_lstm_B,
+                        "Group B (from14.5–14.6) — BEST: BiLSTM vs LSTM",
+                        CMP_PLOT_B_BEST)
+_overlay_bilstm_vs_lstm(worst_blob_B, worst_lstm_B,
+                        "Group B (from14.5–14.6) — WORST: BiLSTM vs LSTM",
+                        CMP_PLOT_B_WORST)
+
+# Collect accuracy/loss summaries for prints — Group B
+bi_acc, bi_loss = _acc_loss_from(best_blob_B)
+ls_acc, ls_loss = _acc_loss_from(best_lstm_B)
+cmp_rows.append({
+    "group": "B (from14.5–14.6)", "which": "BEST",
+    "val_acc_LSTM": ls_acc, "val_loss_LSTM": ls_loss,
+    "val_acc_BiLSTM": bi_acc, "val_loss_BiLSTM": bi_loss,
+    "delta_acc (Bi−LSTM)": (None if (bi_acc is None or ls_acc is None) else float(bi_acc - ls_acc)),
+    "delta_loss (Bi−LSTM)": (None if (bi_loss is None or ls_loss is None) else float(bi_loss - ls_loss)),
+})
+
+bi_acc, bi_loss = _acc_loss_from(worst_blob_B)
+ls_acc, ls_loss = _acc_loss_from(worst_lstm_B)
+cmp_rows.append({
+    "group": "B (from14.5–14.6)", "which": "WORST",
+    "val_acc_LSTM": ls_acc, "val_loss_LSTM": ls_loss,
+    "val_acc_BiLSTM": bi_acc, "val_loss_BiLSTM": bi_loss,
+    "delta_acc (Bi−LSTM)": (None if (bi_acc is None or ls_acc is None) else float(bi_acc - ls_acc)),
+    "delta_loss (Bi−LSTM)": (None if (bi_loss is None or ls_loss is None) else float(bi_loss - ls_loss)),
+})
+
+# Save/print the comparison summary
+cmp_df = pd.DataFrame(cmp_rows)
+cmp_df.to_csv(CMP_SUMMARY_CSV, index=False)
+print("\n[BiLSTM vs LSTM — Validation comparison]")
+print(cmp_df.to_string(index=False))
+print(f"\n[Saved] Comparison CSV → {CMP_SUMMARY_CSV}")
+
+# Final reminders of saved figures
+print(f"\n[Saved] {PLOT_14_4_BEST}")
+print(f"[Saved] {PLOT_14_4_WORST}")
+print(f"[Saved] {PLOT_14_6_BEST}")
+print(f"[Saved] {PLOT_14_6_WORST}")
+print(f"[Saved] {PLOT_BESTS}")
+print(f"[Saved] {PLOT_WORSTS}")
+print(f"[Saved] {PLOT_ABS_BvW}")
+print(f"[Saved] {CMP_PLOT_A_BEST}")
+print(f"[Saved] {CMP_PLOT_A_WORST}")
+print(f"[Saved] {CMP_PLOT_B_BEST}")
+print(f"[Saved] {CMP_PLOT_B_WORST}")
+
+"""### **FINAL STEP — Absolute Best Model (up to Step 14.7) — Deliverables**
+
+#### **Goal**
+Select the **single best model by validation** among all candidates produced up to **Step 14.7**, then generate the **final quantitative results** and **figures**:
+- Validation/Test **accuracy** and **loss**.
+- **Confusion matrices** on **VAL** and **TEST**.
+- **Training vs Validation** loss plot for the winner.
+
+#### **Winner Selection**
+1. Load all rows from the above leaderboards into a single candidate list (tagging the **source**).
+2. For each row, extract:
+   - **Loss** key:  
+     - 14.4: `val_loss` (best across epochs, from snapshots/JSON)  
+     - 14.5–14.6 & 14.7: `best_val_loss`
+   - **Accuracy** key:  
+     - 14.4: `val_acc` at the best-VAL epoch  
+     - 14.5–14.6 & 14.7: `best_val_acc`
+3. **Sort** by `(val_loss ASC, val_acc DESC)` and pick the **top row**.
+
+> If the winner is from **14.4** and its checkpoint lacks a per-epoch VAL curve in `history`, the code **back-fills** `val_curve` and `val_acc_curve` from `leaderboard_with_val.json` so the training-vs-validation plot is still produced.
+
+#### **Model Re-instantiation**
+- A unified classifier (`GenericLSTMClassifier`) that supports **unidirectional** and **bidirectional** LSTMs is rebuilt from the winner’s **`meta`** (or **`cfg`** for 14.1–14.3-style checkpoints):
+  - `input_dim`, `rnn_size`, `num_layers`, `num_classes`, `dropout`, `bidirectional`.
+- The saved `model_state` is loaded for evaluation.
+
+#### **Evaluation Protocol**
+Using the **Step-14 Preparatory Cell** data loaders (`train_loader`, `val_loader`, `test_loader`):
+- Compute **VAL loss/accuracy** and **TEST loss/accuracy** (cross-entropy, argmax).
+- Produce:
+  1. **Confusion Matrix — Validation (Best Overall)**  
+  2. **Confusion Matrix — Test (Best Overall)**  
+  3. **Training vs Validation Loss — Best Overall (selected by VAL)**
+
+If the per-epoch **VAL** curve is unavailable, the plot includes a **horizontal line** at the stored **best VAL loss**.
+
+#### **Saved Outputs**
+All final artifacts are stored under `Final_Deliverables/`:
+- `Training_vs_Validation_Loss (Best Overall).png`
+- `Confusion_Matrix_Validation (Best Overall).png`
+- `Confusion_Matrix_Test (Best Overall).png`
+
+The console prints:
+- Winner’s **source**, **checkpoint path**, **VAL loss/acc**.
+- **Validation** and **Test** metrics for the best model.
+
+#### **What this final step answers**
+- Among all explored configurations (uni-LSTM, **regularized**, and **BiLSTM**), which **single model** yields the **lowest validation loss** (with accuracy tie-break)?
+- How does it perform on **held-out TEST**?
+- Do its **learning curves** indicate healthy training/validation dynamics?
+
+"""
+
+# ==============================================================
+# FINAL STEP — Pick the ABSOLUTE BEST model (by validation) up to Step 14.7
+# and produce the required deliverables:
+#   • Validation & Test accuracy (success rate)
+#   • Confusion matrix (on TEST set)
+#   • Training-vs-Validation loss curves (same figure)
+# ==============================================================
+
+import json, math, numpy as np, torch
+import torch.nn as nn
+from pathlib import Path
+from typing import Dict, Any, Tuple, List
+import matplotlib.pyplot as plt
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
+
+# --------------------------- Sanity checks ---------------------------
+assert 'train_loader' in globals() and 'val_loader' in globals() and 'test_loader' in globals(), \
+    "Run the Step-14 Preparatory Cell first (must define train/val/test loaders)."
+
+# --------------------------- File locations (30-epoch artifacts) ---------------------------
+P14_4 = Path("Step14_checkpoints_train_only/leaderboard_with_val.json")
+
+# 14.5–14.6: use the 30-epoch directories & filenames
+P146_ROOT = Path("Step14_reg_top30_compare_30ep")
+P146_FIX  = P146_ROOT / "leaderboard_FIXED_30E.json"
+P146_EAR  = P146_ROOT / "leaderboard_EARLY.json"
+
+# Step 7 (BiLSTM) leaderboards
+P7_A = Path("Step07_bilstm_from14_4/leaderboard_bilstm_from14_4.json")
+P7_B = Path("Step07_bilstm_from14_6/leaderboard_bilstm_from14_6.json")
+
+OUT_DIR = Path("Final_Deliverables")
+OUT_DIR.mkdir(parents=True, exist_ok=True)
+PLOT_CURVES = OUT_DIR / "Training_vs_Validation_Loss (Best Overall).png"
+PLOT_CM_VAL = OUT_DIR / "Confusion_Matrix_Validation (Best Overall).png"
+PLOT_CM_TST = OUT_DIR / "Confusion_Matrix_Test (Best Overall).png"
+
+# --------------------------- Model re-instantiation ---------------------------
+class GenericLSTMClassifier(nn.Module):
+    def __init__(self, input_dim: int, hidden: int, num_layers: int,
+                 num_classes: int, dropout_p: float, bidirectional: bool):
+        super().__init__()
+        self.bidirectional = bidirectional
+        self.num_layers = num_layers
+        self.dropout_p = dropout_p
+        self.lstm = nn.LSTM(
+            input_size=input_dim,
+            hidden_size=hidden,
+            num_layers=num_layers,
+            batch_first=True,
+            bidirectional=bidirectional,
+            dropout=(dropout_p if num_layers > 1 else 0.0),
+        )
+        out_dim = hidden * (2 if bidirectional else 1)
+        self.post_dropout = nn.Dropout(dropout_p)
+        self.fc = nn.Linear(out_dim, num_classes)
+
+    @staticmethod
+    def _last_valid(outputs: torch.Tensor, lengths: torch.Tensor) -> torch.Tensor:
+        idx = (lengths - 1).view(-1, 1, 1).expand(outputs.size(0), 1, outputs.size(2))
+        return outputs.gather(1, idx).squeeze(1)
+
+    @staticmethod
+    def _first(outputs: torch.Tensor) -> torch.Tensor:
+        return outputs[:, 0, :]
+
+    def forward(self, x, lengths):
+        y, _ = self.lstm(x)
+        if not self.bidirectional:
+            pooled = self._last_valid(y, lengths)
+        else:
+            H = y.size(-1) // 2
+            fw, bw = y[:, :, :H], y[:, :, H:]
+            pooled = torch.cat([self._last_valid(fw, lengths), self._first(bw)], dim=-1)
+        return self.fc(self.post_dropout(pooled))
+
+def build_model_from_meta(meta: Dict[str, Any]) -> nn.Module:
+    model = GenericLSTMClassifier(
+        input_dim=int(meta.get("input_dim")),
+        hidden=int(meta.get("rnn_size")),
+        num_layers=int(meta.get("num_layers", 1)),
+        num_classes=int(meta.get("num_classes", 10)),
+        dropout_p=float(meta.get("dropout", 0.0)),
+        bidirectional=bool(meta.get("bidirectional", False)),
+    )
+    return model
+
+# --------------------------- Utilities ---------------------------
+def _load_json_rows(p: Path, key_loss="best_val_loss", key_acc="best_val_acc", source="") -> list:
+    if not p.is_file():
+        return []
+    rows = json.loads(p.read_text())
+    norm = []
+    for r in rows:
+        loss = float(r.get(key_loss, r.get("val_loss", math.inf)))
+        acc  = float(r.get(key_acc,  r.get("val_acc",  -math.inf)))
+        ckpt = r.get("checkpoint") or r.get("ckpt_path") or r.get("ckpt") or r.get("path")
+        if ckpt is None:
+            continue
+        norm.append({"source": source, "val_loss": loss, "val_acc": acc, "checkpoint": ckpt})
+    return norm
+
+def _make_ckpt_to_valcurve_map_14_4(p: Path) -> Dict[str, Dict[str, List[float]]]:
+    """
+    For step 14.4 results, build a map: ckpt_path -> {"val_curve": [...], "val_acc_curve": [...]}
+    so we can draw per-epoch VAL even if the checkpoint blob lacks it.
+    """
+    m = {}
+    if not p.is_file():
+        return m
+    rows = json.loads(p.read_text())
+    for r in rows:
+        ck = r.get("checkpoint")
+        if ck:
+            m[str(ck)] = {
+                "val_curve": r.get("val_curve", []),
+                "val_acc_curve": r.get("val_acc_curve", []),
+            }
+    return m
+
+def select_best_across_sources() -> Dict[str, Any]:
+    candidates = []
+    candidates += _load_json_rows(P14_4,   key_loss="val_loss",      key_acc="val_acc",      source="step14.4_uni")
+    candidates += _load_json_rows(P146_FIX,key_loss="best_val_loss", key_acc="best_val_acc", source="step14.6_FIXED_30E")
+    candidates += _load_json_rows(P146_EAR,key_loss="best_val_loss", key_acc="best_val_acc", source="step14.6_EARLY")
+    candidates += _load_json_rows(P7_A,    key_loss="best_val_loss", key_acc="best_val_acc", source="step7_from14.4_Bi")
+    candidates += _load_json_rows(P7_B,    key_loss="best_val_loss", key_acc="best_val_acc", source="step7_from14.6_Bi")
+    assert len(candidates) > 0, "No candidates found. Make sure prior steps ran and saved leaderboards."
+    return sorted(candidates, key=lambda r: (r["val_loss"], -r["val_acc"]))[0]
+
+@torch.no_grad()
+def evaluate_split(model: nn.Module, loader, crit: nn.Module) -> Tuple[float, float, np.ndarray, np.ndarray]:
+    model.eval()
+    tot, n, correct = 0.0, 0, 0
+    y_true, y_pred = [], []
+    for xb, yb, lb in loader:
+        logits = model(xb, lb)
+        loss   = crit(logits, yb)
+        tot += loss.item() * yb.size(0); n += yb.size(0)
+        preds = logits.argmax(dim=1)
+        correct += (preds == yb).sum().item()
+        y_true.append(yb.cpu().numpy()); y_pred.append(preds.cpu().numpy())
+    y_true = np.concatenate(y_true, axis=0); y_pred = np.concatenate(y_pred, axis=0)
+    return float(tot / max(1, n)), float(correct / max(1, n)), y_true, y_pred
+
+def plot_train_val_curves(history: Dict[str, list], title: str, outfile: Path):
+    train_curve = history.get("train", [])
+    val_curve   = history.get("val",   None)
+    plt.figure(figsize=(7.8, 4.8), dpi=120)
+    if len(train_curve) > 0:
+        plt.plot(range(1, len(train_curve)+1), train_curve, marker="o", label="train loss")
+    if isinstance(val_curve, (list, tuple)) and len(val_curve) > 0:
+        plt.plot(range(1, len(val_curve)+1), val_curve, marker="^", label="val loss")
+    else:
+        best_val = history.get("best_val_loss", None)
+        if best_val is not None:
+            plt.axhline(float(best_val), linestyle="--", label=f"val loss (best={best_val:.4f})")
+    plt.xlabel("Epoch"); plt.ylabel("Loss"); plt.title(title)
+    plt.grid(True, linewidth=0.5, alpha=0.6); plt.legend(); plt.tight_layout()
+    plt.savefig(outfile); plt.show()
+
+def plot_confusion(y_true: np.ndarray, y_pred: np.ndarray, title: str, outfile: Path, num_classes: int):
+    cm = confusion_matrix(y_true, y_pred, labels=list(range(num_classes)))
+    disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=list(range(num_classes)))
+    plt.figure(figsize=(6.4, 6.0), dpi=120)
+    disp.plot(values_format="d", cmap=None)
+    plt.title(title); plt.tight_layout(); plt.savefig(outfile); plt.show()
+
+# --------------------------- 1) Pick ABSOLUTE BEST by validation ---------------------------
+best_row = select_best_across_sources()
+best_ckpt_path = Path(best_row["checkpoint"])
+assert best_ckpt_path.is_file(), f"Missing checkpoint for best model: {best_ckpt_path}"
+
+# Load the blob and normalize metadata/history regardless of step
+blob = torch.load(best_ckpt_path, map_location="cpu")
+
+# (a) Use meta if present; else fallback to cfg (14.1–14.3 checkpoints)
+meta = blob.get("meta") or blob.get("cfg", {})
+# minimal safety checks
+required_keys = ["input_dim", "rnn_size"]
+for k in required_keys:
+    assert k in meta, f"Checkpoint meta missing '{k}': {best_ckpt_path}"
+
+# (b) Build history
+history = blob.get("history", {})
+if not isinstance(history, dict):
+    history = {}
+
+# Fill train curve if missing (14.1–14.3 style)
+if len(history.get("train", [])) == 0:
+    tr = blob.get("train_losses", blob.get("losses", []))
+    if isinstance(tr, list) and len(tr) > 0:
+        history["train"] = tr[:]
+
+# If VAL per-epoch missing in blob and the winner is from 14.4,
+# pull val_curve from the 14.4 leaderboard (matched by checkpoint path)
+if len(history.get("val", [])) == 0 and best_row["source"].startswith("step14.4"):
+    ckpt2val = _make_ckpt_to_valcurve_map_14_4(P14_4)
+    vc_pack = ckpt2val.get(str(best_ckpt_path))
+    if vc_pack and isinstance(vc_pack.get("val_curve", None), list):
+        history["val"] = vc_pack["val_curve"][:]
+
+# Keep best val as fallback line if available
+if "best_val_loss" in blob and "best_val_loss" not in history:
+    history["best_val_loss"] = blob["best_val_loss"]
+
+print("[Best Model Selected]")
+print(f"  source     : {best_row['source']}")
+print(f"  checkpoint : {best_ckpt_path}")
+print(f"  val_loss   : {best_row['val_loss']:.6f}")
+print(f"  val_acc    : {best_row['val_acc']:.6f}")
+print(f"  meta       : {meta}")
+
+# --------------------------- 2) Rebuild model & load weights ---------------------------
+model = build_model_from_meta(meta)
+model.load_state_dict(blob["model_state"])
+criterion = nn.CrossEntropyLoss()
+
+# --------------------------- 3) Evaluate on VAL and TEST ---------------------------
+val_loss, val_acc, yv_true, yv_pred = evaluate_split(model, val_loader, criterion)
+tst_loss, tst_acc, yt_true, yt_pred = evaluate_split(model, test_loader, criterion)
+
+print("\n[Validation Results — Best Overall]")
+print(f"  VAL loss: {val_loss:.6f} | VAL accuracy: {val_acc:.4%}")
+
+print("\n[Test Results — Best Overall]")
+print(f"  TEST loss: {tst_loss:.6f} | TEST accuracy: {tst_acc:.4%}")
+
+# --------------------------- 4) Confusion matrices (VAL and TEST) ---------------------------
+num_classes = int(meta.get("num_classes", 10))
+plot_confusion(yv_true, yv_pred, title="Confusion Matrix — Validation (Best Overall)", outfile=PLOT_CM_VAL, num_classes=num_classes)
+plot_confusion(yt_true, yt_pred, title="Confusion Matrix — Test (Best Overall)",       outfile=PLOT_CM_TST, num_classes=num_classes)
+
+# --------------------------- 5) Training vs Validation loss curves ---------------------------
+plot_train_val_curves(history, title="Training vs Validation Loss — Best Overall (selected by VAL)", outfile=PLOT_CURVES)
 
 """---
 
