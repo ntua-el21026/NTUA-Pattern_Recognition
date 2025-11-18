@@ -3223,7 +3223,8 @@ Pattern_Recognition/
 │   ├── ex2/
 │   │   ├── docs/
 │   │   │   ├── images/
-│   │   │   └── submission/
+│   │   │   ├── submission/
+│   │   │   └── 2η Εργαστηριακή Άσκηση - Προπαρασκευή.pdf
 │   │   └── material/
 │   └── ex3/
 ├── lab_repos/
@@ -3288,4 +3289,4 @@ Pattern_Recognition/
 ├── LICENSE
 └── README.md
 
-Total directories: 32, Total files: 3257
+Total directories: 32, Total files: 3258
