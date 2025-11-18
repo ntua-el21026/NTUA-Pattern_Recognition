@@ -1,5 +1,14 @@
 Pattern_Recognition/
+├── analytical_exercises/
+│   └── 1η Σειρά Αναλυτικών Ασκήσεων - Εκφώνηση.pdf
 ├── docs/
+│   ├── bibliography/
+│   │   ├── HMM acoustic modeling.pdf
+│   │   ├── Stanford YouTube Lectures.txt
+│   │   ├── The Unreasonable Effectiveness of Recurrent Neural Networks.pdf
+│   │   ├── Understanding LSTM Networks.pdf
+│   │   ├── Σημειώσεις Πιθανοτήτων για Μηχανικούς.pdf
+│   │   └── Τutorial on hmm and applications.pdf
 │   ├── lecture_slides/
 │   │   ├── ML_Intro.txt
 │   │   └── Speech and Language Processing - Stanford.pdf
@@ -3227,7 +3236,7 @@ Pattern_Recognition/
 │   │   │   └── 2η Εργαστηριακή Άσκηση - Προπαρασκευή.pdf
 │   │   └── material/
 │   └── ex3/
-├── lab_repos/
+├── lab_material/
 │   ├── patrec-labs/
 │   │   ├── lab1/
 │   │   │   └── lib.py
@@ -3277,16 +3286,10 @@ Pattern_Recognition/
 │   │   ├── .gitignore
 │   │   ├── README.md
 │   │   └── spell_checker_test_set
-│   ├── HMM acoustic modeling.pdf
-│   ├── README.txt
-│   ├── Stanford YouTube Lectures.txt
-│   ├── The Unreasonable Effectiveness of Recurrent Neural Networks.pdf
-│   ├── Understanding LSTM Networks.pdf
-│   ├── Σημειώσεις Πιθανοτήτων για Μηχανικούς.pdf
-│   └── Τutorial on hmm and applications.pdf
+│   └── README.txt
 ├── .gitattributes
 ├── .gitignore
 ├── LICENSE
 └── README.md
 
-Total directories: 32, Total files: 3258
+Total directories: 34, Total files: 3259
