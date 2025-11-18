@@ -53,7 +53,7 @@ Pattern_Recognition/
 │   │   │   │   ├── Steps 14.5-14.6 - Best Validation Loss (fixed epochs).png
 │   │   │   │   ├── Steps 14.5-14.6 - Worst Validation Loss (early stopping).png
 │   │   │   │   └── Steps 14.5-14.6 - Worst Validation Loss (fixed epochs).png
-│   │   │   ├── Submission/
+│   │   │   ├── submission/
 │   │   │   │   ├── patrec1_03121026_03121023.py
 │   │   │   │   └── patrec1_03121026_03121023_report.pdf
 │   │   │   ├── patrec1_03121026_03121023_report.pdf
@@ -3221,6 +3221,10 @@ Pattern_Recognition/
 │   │   ├── patrec1_03121026_03121023.ipynb
 │   │   └── patrec1_03121026_03121023.py
 │   ├── ex2/
+│   │   ├── docs/
+│   │   │   ├── images/
+│   │   │   └── submission/
+│   │   └── material/
 │   └── ex3/
 ├── lab_repos/
 │   ├── patrec-labs/
@@ -3272,12 +3276,16 @@ Pattern_Recognition/
 │   │   ├── .gitignore
 │   │   ├── README.md
 │   │   └── spell_checker_test_set
+│   ├── HMM acoustic modeling.pdf
 │   ├── README.txt
 │   ├── Stanford YouTube Lectures.txt
-│   └── Σημειώσεις Πιθανοτήτων για Μηχανικούς.pdf
+│   ├── The Unreasonable Effectiveness of Recurrent Neural Networks.pdf
+│   ├── Understanding LSTM Networks.pdf
+│   ├── Σημειώσεις Πιθανοτήτων για Μηχανικούς.pdf
+│   └── Τutorial on hmm and applications.pdf
 ├── .gitattributes
 ├── .gitignore
 ├── LICENSE
 └── README.md
 
-Total directories: 28, Total files: 3253
+Total directories: 32, Total files: 3257
