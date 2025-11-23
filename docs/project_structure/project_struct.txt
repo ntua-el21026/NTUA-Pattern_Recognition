@@ -1,6 +1,10 @@
 Pattern_Recognition/
 ├── analytical_exercises/
-│   └── 1η Σειρά Αναλυτικών Ασκήσεων - Εκφώνηση.pdf
+│   ├── plots/
+│   │   └── EM_Plots.png
+│   ├── 1η Σειρά Αναλυτικών Ασκήσεων - Εκφώνηση.pdf
+│   ├── plots_em.py
+│   └── plots_em.py.pdf
 ├── docs/
 │   ├── bibliography/
 │   │   ├── HMM acoustic modeling.pdf
@@ -3292,4 +3296,4 @@ Pattern_Recognition/
 ├── LICENSE
 └── README.md
 
-Total directories: 34, Total files: 3259
+Total directories: 35, Total files: 3262
