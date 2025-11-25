@@ -2,7 +2,12 @@ Pattern_Recognition/
 ├── analytical_exercises/
 │   ├── plots/
 │   │   └── EM_Plots.png
+│   ├── results/
+│   │   ├── hmm_viterbi_training_log.pdf
+│   │   └── hmm_viterbi_training_log.txt
 │   ├── 1η Σειρά Αναλυτικών Ασκήσεων - Εκφώνηση.pdf
+│   ├── hmm_viterbi_training.py
+│   ├── hmm_viterbi_training.py.pdf
 │   ├── plots_em.py
 │   └── plots_em.py.pdf
 ├── docs/
@@ -3296,4 +3301,4 @@ Pattern_Recognition/
 ├── LICENSE
 └── README.md
 
-Total directories: 35, Total files: 3262
+Total directories: 36, Total files: 3266
