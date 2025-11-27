@@ -1,26 +1,45 @@
 Pattern_Recognition/
 ├── analytical_exercises/
-│   ├── plots/
-│   │   └── EM_Plots.png
-│   ├── results/
-│   │   ├── hmm_viterbi_training_log.pdf
-│   │   └── hmm_viterbi_training_log.txt
+│   ├── programs/
+│   │   ├── plots/
+│   │   │   ├── EM_Plots.pdf
+│   │   │   └── EM_Plots.png
+│   │   ├── results/
+│   │   │   ├── hmm_viterbi_training_log.pdf
+│   │   │   ├── hmm_viterbi_training_log.txt
+│   │   │   ├── lms_online_log.pdf
+│   │   │   ├── lms_online_log.txt
+│   │   │   ├── rnn_6d_results.pdf
+│   │   │   ├── rnn_6d_results.txt
+│   │   │   ├── rnn_6f_results.pdf
+│   │   │   └── rnn_6f_results.txt
+│   │   ├── hmm_viterbi_training.py
+│   │   ├── hmm_viterbi_training.py.pdf
+│   │   ├── lms_classification_online.py
+│   │   ├── lms_classification_online.py.pdf
+│   │   ├── plots_em.py
+│   │   ├── plots_em.py.pdf
+│   │   ├── rnn_6d.py
+│   │   ├── rnn_6d.py.pdf
+│   │   ├── rnn_6f.py
+│   │   └── rnn_6f.py.pdf
 │   ├── 1η Σειρά Αναλυτικών Ασκήσεων - Εκφώνηση.pdf
-│   ├── hmm_viterbi_training.py
-│   ├── hmm_viterbi_training.py.pdf
-│   ├── plots_em.py
-│   └── plots_em.py.pdf
+│   └── pr23_hwk_03121026_MichaelPeppas.pdf
 ├── docs/
 │   ├── bibliography/
+│   │   ├── Dive into Deep Learning.pdf
 │   │   ├── HMM acoustic modeling.pdf
+│   │   ├── ML_Intro.txt
+│   │   ├── Speech and Language Processing - Stanford.pdf
+│   │   ├── Stanford HMM Notes.pdf
 │   │   ├── Stanford YouTube Lectures.txt
 │   │   ├── The Unreasonable Effectiveness of Recurrent Neural Networks.pdf
 │   │   ├── Understanding LSTM Networks.pdf
 │   │   ├── Σημειώσεις Πιθανοτήτων για Μηχανικούς.pdf
 │   │   └── Τutorial on hmm and applications.pdf
-│   ├── lecture_slides/
-│   │   ├── ML_Intro.txt
-│   │   └── Speech and Language Processing - Stanford.pdf
+│   ├── exam_notes/
+│   │   ├── main.tex
+│   │   └── Pattern_Recognition_Exam_Notes.pdf
 │   └── project_structure/
 │       ├── project_struct.py
 │       └── project_struct.txt
@@ -74,6 +93,7 @@ Pattern_Recognition/
 │   │   │   ├── submission/
 │   │   │   │   ├── patrec1_03121026_03121023.py
 │   │   │   │   └── patrec1_03121026_03121023_report.pdf
+│   │   │   ├── 1η Εργαστηριακή Άσκηση.pdf
 │   │   │   ├── patrec1_03121026_03121023_report.pdf
 │   │   │   ├── Report - Final.docx
 │   │   │   ├── Αναφορά Πάνου - 1.docx
@@ -3234,17 +3254,15 @@ Pattern_Recognition/
 │   │   │   │   │   └── two9.wav
 │   │   │   │   ├── onetwothree1.wav
 │   │   │   │   └── onetwothree8.wav
-│   │   │   ├── 1η Εργαστηριακή Άσκηση.pdf
 │   │   │   └── pr_lab2_data.zip
 │   │   ├── patrec1_03121026_03121023.ipynb
 │   │   └── patrec1_03121026_03121023.py
-│   ├── ex2/
-│   │   ├── docs/
-│   │   │   ├── images/
-│   │   │   ├── submission/
-│   │   │   └── 2η Εργαστηριακή Άσκηση - Προπαρασκευή.pdf
-│   │   └── material/
-│   └── ex3/
+│   └── ex2/
+│       ├── docs/
+│       │   ├── images/
+│       │   ├── submission/
+│       │   └── 2η Εργαστηριακή Άσκηση.pdf
+│       └── material/
 ├── lab_material/
 │   ├── patrec-labs/
 │   │   ├── lab1/
@@ -3301,4 +3319,4 @@ Pattern_Recognition/
 ├── LICENSE
 └── README.md
 
-Total directories: 36, Total files: 3266
+Total directories: 36, Total files: 3284
