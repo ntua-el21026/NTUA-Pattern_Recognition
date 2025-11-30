@@ -3260,9 +3260,44 @@ Pattern_Recognition/
 │   └── ex2/
 │       ├── docs/
 │       │   ├── images/
+│       │   │   ├── Step 1 - Mel Beat - Synced Spectrograms.png
+│       │   │   ├── Step 1 - Mel Spectrograms.png
+│       │   │   ├── Step 2 - Beat - Synced Chromagrams.png
+│       │   │   ├── Step 2 - Chromagrams.png
+│       │   │   ├── Step 4 - Historiogram (All Classes).png
+│       │   │   ├── Step 4 - Historiogram (Merged Classes).png
+│       │   │   ├── Step 5 - Chromagrams Overfit.png
+│       │   │   ├── Step 5 - Fused Overfit.png
+│       │   │   ├── Step 5 - Mel Beat-Synced Overfit.png
+│       │   │   ├── Step 5 - Mel Overfit.png
+│       │   │   ├── Step 5 - Output Beat-Synced Mel.png
+│       │   │   ├── Step 5 - Output Chromagrams.png
+│       │   │   ├── Step 5 - Output Fused.png
+│       │   │   ├── Step 5 - Output Mel.png
+│       │   │   ├── Step 6 - Accuracy per Model.png
+│       │   │   ├── Step 6 - Chromagrams Output.png
+│       │   │   ├── Step 6 - Fused Output.png
+│       │   │   ├── Step 6 - Macro Averaged Metrics per Model.png
+│       │   │   ├── Step 6 - Mel Beat-Synced Output.png
+│       │   │   ├── Step 6 - Mel Output.png
+│       │   │   ├── Step 6 - Micro Averaged Metrics per Model.png
+│       │   │   ├── Step 6 - Per Class F1 (1).png
+│       │   │   ├── Step 6 - Per Class F1 (2).png
+│       │   │   ├── Step 6 - Per Class Precesion (1).png
+│       │   │   ├── Step 6 - Per Class Precesion (2).png
+│       │   │   ├── Step 6 - Per Class Recall (1).png
+│       │   │   └── Step 6 - Per Class Recall (2).png
 │       │   ├── submission/
 │       │   └── 2η Εργαστηριακή Άσκηση.pdf
-│       └── material/
+│       ├── material/
+│       │   ├── help_step4.py
+│       │   ├── help_step5.py
+│       │   ├── help_step6.py
+│       │   ├── help_step7.py
+│       │   ├── help_step8.py
+│       │   └── lab2-data-loading-tutorial.ipynb
+│       ├── Lab_2.ipynb
+│       └── Report_2.docx
 ├── lab_material/
 │   ├── patrec-labs/
 │   │   ├── lab1/
@@ -3319,4 +3354,4 @@ Pattern_Recognition/
 ├── LICENSE
 └── README.md
 
-Total directories: 36, Total files: 3284
+Total directories: 36, Total files: 3319
