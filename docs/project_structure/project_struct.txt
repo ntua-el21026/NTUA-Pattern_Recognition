@@ -3258,10 +3258,16 @@ Pattern_Recognition/
 │   │   ├── patrec1_03121026_03121023.ipynb
 │   │   └── patrec1_03121026_03121023.py
 │   └── ex2/
+│       ├── codex/
+│       │   ├── step10_multitask.py
+│       │   ├── step8_regression.py
+│       │   └── step9_transfer.py
 │       ├── docs/
 │       │   ├── images/
 │       │   │   ├── Step 1 - Mel Beat - Synced Spectrograms.png
 │       │   │   ├── Step 1 - Mel Spectrograms.png
+│       │   │   ├── Step 10 - Results.png
+│       │   │   ├── Step 10 - Training.png
 │       │   │   ├── Step 2 - Beat - Synced Chromagrams.png
 │       │   │   ├── Step 2 - Chromagrams.png
 │       │   │   ├── Step 4 - Historiogram (All Classes).png
@@ -3298,9 +3304,19 @@ Pattern_Recognition/
 │       │   │   ├── Step 7.2 - Confusion Matrix.png
 │       │   │   ├── Step 7.2 - Overfit.png
 │       │   │   ├── Step 7.2 - Results.png
-│       │   │   └── Step 7.2 - Training.png
+│       │   │   ├── Step 7.2 - Training.png
+│       │   │   ├── Step 8 - Danceability Training.png
+│       │   │   ├── Step 8 - Energy Training.png
+│       │   │   ├── Step 8 - Results.png
+│       │   │   ├── Step 8 - Valence Training.png
+│       │   │   ├── Step 9.1 - Results.png
+│       │   │   ├── Step 9.1 - Training.png
+│       │   │   ├── Step 9.2 - Results.png
+│       │   │   └── Step 9.2 - Training.png
 │       │   ├── submission/
-│       │   └── 2η Εργαστηριακή Άσκηση.pdf
+│       │   │   └── patrec2_03121026_03121023.py
+│       │   ├── 2η Εργαστηριακή Άσκηση.pdf
+│       │   └── patrec2_03121026_03121023_report.docx
 │       ├── material/
 │       │   ├── help_step4.py
 │       │   ├── help_step5.py
@@ -3309,8 +3325,8 @@ Pattern_Recognition/
 │       │   ├── help_step7.2.py
 │       │   ├── help_step8.py
 │       │   └── lab2-data-loading-tutorial.ipynb
-│       ├── patrec2-03121026-03121023.ipynb
-│       └── Report_2.docx
+│       ├── patrec2_03121026_03121023.ipynb
+│       └── patrec2_03121026_03121023.py
 ├── lab_material/
 │   ├── patrec-labs/
 │   │   ├── lab1/
@@ -3367,4 +3383,4 @@ Pattern_Recognition/
 ├── LICENSE
 └── README.md
 
-Total directories: 36, Total files: 3332
+Total directories: 37, Total files: 3347
