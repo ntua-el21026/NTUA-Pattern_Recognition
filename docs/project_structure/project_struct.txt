@@ -3314,9 +3314,12 @@ Pattern_Recognition/
 │       │   │   ├── Step 9.2 - Results.png
 │       │   │   └── Step 9.2 - Training.png
 │       │   ├── submission/
-│       │   │   └── patrec2_03121026_03121023.py
+│       │   │   ├── patrec2_03121026_03121023_code.py
+│       │   │   └── patrec2_03121026_03121023_report.pdf
 │       │   ├── 2η Εργαστηριακή Άσκηση.pdf
-│       │   └── patrec2_03121026_03121023_report.docx
+│       │   ├── patrec2_03121026_03121023_report.docx
+│       │   ├── patrec2_03121026_03121023_report.pdf
+│       │   └── Αναφορά Πάνου.docx
 │       ├── material/
 │       │   ├── help_step4.py
 │       │   ├── help_step5.py
@@ -3378,9 +3381,10 @@ Pattern_Recognition/
 │   │   ├── README.md
 │   │   └── spell_checker_test_set
 │   └── README.txt
+├── project/
 ├── .gitattributes
 ├── .gitignore
 ├── LICENSE
 └── README.md
 
-Total directories: 37, Total files: 3347
+Total directories: 38, Total files: 3350
