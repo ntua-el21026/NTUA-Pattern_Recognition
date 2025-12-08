@@ -27,9 +27,17 @@ Pattern_Recognition/
 │   └── pr23_hwk_03121026_MichaelPeppas.pdf
 ├── docs/
 │   ├── bibliography/
+│   │   ├── llm class from coursera/
+│   │   │   ├── Lab_1_summarize_dialogue.ipynb
+│   │   │   ├── Lab_2_fine_tune_generative_ai_model.ipynb
+│   │   │   ├── Lab_3_fine_tune_model_to_detoxify_summaries.ipynb
+│   │   │   ├── W1.pdf
+│   │   │   ├── W2.pdf
+│   │   │   └── W3.pdf
 │   │   ├── Dive into Deep Learning.pdf
 │   │   ├── HMM acoustic modeling.pdf
 │   │   ├── ML_Intro.txt
+│   │   ├── NeurIPS - Tutorial in LLM Interpretability.pdf
 │   │   ├── Speech and Language Processing - Stanford.pdf
 │   │   ├── Stanford HMM Notes.pdf
 │   │   ├── Stanford YouTube Lectures.txt
@@ -3382,9 +3390,11 @@ Pattern_Recognition/
 │   │   └── spell_checker_test_set
 │   └── README.txt
 ├── project/
+│   ├── Θέματα Εξαμηνιαίας Εργασίας Αναγνώριση Προτύπων 2025-26.docx
+│   └── Θέματα Εξαμηνιαίας Εργασίας Αναγνώριση Προτύπων 2025-26.pdf
 ├── .gitattributes
 ├── .gitignore
 ├── LICENSE
 └── README.md
 
-Total directories: 38, Total files: 3350
+Total directories: 39, Total files: 3359
