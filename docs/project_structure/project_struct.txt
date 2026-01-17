@@ -1,30 +1,34 @@
 Pattern_Recognition/
 ├── analytical_exercises/
-│   ├── programs/
-│   │   ├── plots/
-│   │   │   ├── EM_Plots.pdf
-│   │   │   └── EM_Plots.png
-│   │   ├── results/
-│   │   │   ├── hmm_viterbi_training_log.pdf
-│   │   │   ├── hmm_viterbi_training_log.txt
-│   │   │   ├── lms_online_log.pdf
-│   │   │   ├── lms_online_log.txt
-│   │   │   ├── rnn_6d_results.pdf
-│   │   │   ├── rnn_6d_results.txt
-│   │   │   ├── rnn_6f_results.pdf
-│   │   │   └── rnn_6f_results.txt
-│   │   ├── hmm_viterbi_training.py
-│   │   ├── hmm_viterbi_training.py.pdf
-│   │   ├── lms_classification_online.py
-│   │   ├── lms_classification_online.py.pdf
-│   │   ├── plots_em.py
-│   │   ├── plots_em.py.pdf
-│   │   ├── rnn_6d.py
-│   │   ├── rnn_6d.py.pdf
-│   │   ├── rnn_6f.py
-│   │   └── rnn_6f.py.pdf
-│   ├── 1η Σειρά Αναλυτικών Ασκήσεων - Εκφώνηση.pdf
-│   └── pr23_hwk_03121026_MichaelPeppas.pdf
+│   ├── set_1/
+│   │   ├── programs/
+│   │   │   ├── plots/
+│   │   │   │   ├── EM_Plots.pdf
+│   │   │   │   └── EM_Plots.png
+│   │   │   ├── results/
+│   │   │   │   ├── hmm_viterbi_training_log.pdf
+│   │   │   │   ├── hmm_viterbi_training_log.txt
+│   │   │   │   ├── lms_online_log.pdf
+│   │   │   │   ├── lms_online_log.txt
+│   │   │   │   ├── rnn_6d_results.pdf
+│   │   │   │   ├── rnn_6d_results.txt
+│   │   │   │   ├── rnn_6f_results.pdf
+│   │   │   │   └── rnn_6f_results.txt
+│   │   │   ├── hmm_viterbi_training.py
+│   │   │   ├── hmm_viterbi_training.py.pdf
+│   │   │   ├── lms_classification_online.py
+│   │   │   ├── lms_classification_online.py.pdf
+│   │   │   ├── plots_em.py
+│   │   │   ├── plots_em.py.pdf
+│   │   │   ├── rnn_6d.py
+│   │   │   ├── rnn_6d.py.pdf
+│   │   │   ├── rnn_6f.py
+│   │   │   └── rnn_6f.py.pdf
+│   │   ├── 1η Σειρά Αναλυτικών Ασκήσεων - Εκφώνηση.pdf
+│   │   └── pr23_hwk_03121026_MichaelPeppas.pdf
+│   ├── set_2/
+│   │   └── 2η Σειρά Αναλυτικών Ασκήσεων - Εκφώνηση.pdf
+│   └── README.md
 ├── docs/
 │   ├── bibliography/
 │   │   ├── llm class from coursera/
@@ -48,9 +52,10 @@ Pattern_Recognition/
 │   ├── exam_notes/
 │   │   ├── main.tex
 │   │   └── Pattern_Recognition_Exam_Notes.pdf
-│   └── project_structure/
-│       ├── project_struct.py
-│       └── project_struct.txt
+│   ├── project_structure/
+│   │   ├── project_struct.py
+│   │   └── project_struct.txt
+│   └── README.md
 ├── lab/
 │   ├── docs/
 │   │   ├── notebook_template.ipynb
@@ -3265,79 +3270,80 @@ Pattern_Recognition/
 │   │   │   └── pr_lab2_data.zip
 │   │   ├── patrec1_03121026_03121023.ipynb
 │   │   └── patrec1_03121026_03121023.py
-│   └── ex2/
-│       ├── codex/
-│       │   ├── step10_multitask.py
-│       │   ├── step8_regression.py
-│       │   └── step9_transfer.py
-│       ├── docs/
-│       │   ├── images/
-│       │   │   ├── Step 1 - Mel Beat - Synced Spectrograms.png
-│       │   │   ├── Step 1 - Mel Spectrograms.png
-│       │   │   ├── Step 10 - Results.png
-│       │   │   ├── Step 10 - Training.png
-│       │   │   ├── Step 2 - Beat - Synced Chromagrams.png
-│       │   │   ├── Step 2 - Chromagrams.png
-│       │   │   ├── Step 4 - Historiogram (All Classes).png
-│       │   │   ├── Step 4 - Historiogram (Merged Classes).png
-│       │   │   ├── Step 5 - Chromagrams Overfit.png
-│       │   │   ├── Step 5 - Fused Overfit.png
-│       │   │   ├── Step 5 - Mel Beat-Synced Overfit.png
-│       │   │   ├── Step 5 - Mel Overfit.png
-│       │   │   ├── Step 5 - Output Beat-Synced Mel.png
-│       │   │   ├── Step 5 - Output Chromagrams.png
-│       │   │   ├── Step 5 - Output Fused.png
-│       │   │   ├── Step 5 - Output Mel.png
-│       │   │   ├── Step 6 - Accuracy per Model.png
-│       │   │   ├── Step 6 - Chromagrams Output.png
-│       │   │   ├── Step 6 - Fused Output.png
-│       │   │   ├── Step 6 - Macro Averaged Metrics per Model.png
-│       │   │   ├── Step 6 - Mel Beat-Synced Output.png
-│       │   │   ├── Step 6 - Mel Output.png
-│       │   │   ├── Step 6 - Micro Averaged Metrics per Model.png
-│       │   │   ├── Step 6 - Per Class F1 (1).png
-│       │   │   ├── Step 6 - Per Class F1 (2).png
-│       │   │   ├── Step 6 - Per Class Precesion (1).png
-│       │   │   ├── Step 6 - Per Class Precesion (2).png
-│       │   │   ├── Step 6 - Per Class Recall (1).png
-│       │   │   ├── Step 6 - Per Class Recall (2).png
-│       │   │   ├── Step 7.1 (a1).png
-│       │   │   ├── Step 7.1 (a2).png
-│       │   │   ├── Step 7.1 (a3).png
-│       │   │   ├── Step 7.1 (a4).png
-│       │   │   ├── Step 7.1 - Confusion Matrix.png
-│       │   │   ├── Step 7.1 - Overfit.png
-│       │   │   ├── Step 7.1 - Results.png
-│       │   │   ├── Step 7.1 - Training.png
-│       │   │   ├── Step 7.2 - Confusion Matrix.png
-│       │   │   ├── Step 7.2 - Overfit.png
-│       │   │   ├── Step 7.2 - Results.png
-│       │   │   ├── Step 7.2 - Training.png
-│       │   │   ├── Step 8 - Danceability Training.png
-│       │   │   ├── Step 8 - Energy Training.png
-│       │   │   ├── Step 8 - Results.png
-│       │   │   ├── Step 8 - Valence Training.png
-│       │   │   ├── Step 9.1 - Results.png
-│       │   │   ├── Step 9.1 - Training.png
-│       │   │   ├── Step 9.2 - Results.png
-│       │   │   └── Step 9.2 - Training.png
-│       │   ├── submission/
-│       │   │   ├── patrec2_03121026_03121023_code.py
-│       │   │   └── patrec2_03121026_03121023_report.pdf
-│       │   ├── 2η Εργαστηριακή Άσκηση.pdf
-│       │   ├── patrec2_03121026_03121023_report.docx
-│       │   ├── patrec2_03121026_03121023_report.pdf
-│       │   └── Αναφορά Πάνου.docx
-│       ├── material/
-│       │   ├── help_step4.py
-│       │   ├── help_step5.py
-│       │   ├── help_step6.py
-│       │   ├── help_step7.1.py
-│       │   ├── help_step7.2.py
-│       │   ├── help_step8.py
-│       │   └── lab2-data-loading-tutorial.ipynb
-│       ├── patrec2_03121026_03121023.ipynb
-│       └── patrec2_03121026_03121023.py
+│   ├── ex2/
+│   │   ├── codex/
+│   │   │   ├── step10_multitask.py
+│   │   │   ├── step8_regression.py
+│   │   │   └── step9_transfer.py
+│   │   ├── docs/
+│   │   │   ├── images/
+│   │   │   │   ├── Step 1 - Mel Beat - Synced Spectrograms.png
+│   │   │   │   ├── Step 1 - Mel Spectrograms.png
+│   │   │   │   ├── Step 10 - Results.png
+│   │   │   │   ├── Step 10 - Training.png
+│   │   │   │   ├── Step 2 - Beat - Synced Chromagrams.png
+│   │   │   │   ├── Step 2 - Chromagrams.png
+│   │   │   │   ├── Step 4 - Historiogram (All Classes).png
+│   │   │   │   ├── Step 4 - Historiogram (Merged Classes).png
+│   │   │   │   ├── Step 5 - Chromagrams Overfit.png
+│   │   │   │   ├── Step 5 - Fused Overfit.png
+│   │   │   │   ├── Step 5 - Mel Beat-Synced Overfit.png
+│   │   │   │   ├── Step 5 - Mel Overfit.png
+│   │   │   │   ├── Step 5 - Output Beat-Synced Mel.png
+│   │   │   │   ├── Step 5 - Output Chromagrams.png
+│   │   │   │   ├── Step 5 - Output Fused.png
+│   │   │   │   ├── Step 5 - Output Mel.png
+│   │   │   │   ├── Step 6 - Accuracy per Model.png
+│   │   │   │   ├── Step 6 - Chromagrams Output.png
+│   │   │   │   ├── Step 6 - Fused Output.png
+│   │   │   │   ├── Step 6 - Macro Averaged Metrics per Model.png
+│   │   │   │   ├── Step 6 - Mel Beat-Synced Output.png
+│   │   │   │   ├── Step 6 - Mel Output.png
+│   │   │   │   ├── Step 6 - Micro Averaged Metrics per Model.png
+│   │   │   │   ├── Step 6 - Per Class F1 (1).png
+│   │   │   │   ├── Step 6 - Per Class F1 (2).png
+│   │   │   │   ├── Step 6 - Per Class Precesion (1).png
+│   │   │   │   ├── Step 6 - Per Class Precesion (2).png
+│   │   │   │   ├── Step 6 - Per Class Recall (1).png
+│   │   │   │   ├── Step 6 - Per Class Recall (2).png
+│   │   │   │   ├── Step 7.1 (a1).png
+│   │   │   │   ├── Step 7.1 (a2).png
+│   │   │   │   ├── Step 7.1 (a3).png
+│   │   │   │   ├── Step 7.1 (a4).png
+│   │   │   │   ├── Step 7.1 - Confusion Matrix.png
+│   │   │   │   ├── Step 7.1 - Overfit.png
+│   │   │   │   ├── Step 7.1 - Results.png
+│   │   │   │   ├── Step 7.1 - Training.png
+│   │   │   │   ├── Step 7.2 - Confusion Matrix.png
+│   │   │   │   ├── Step 7.2 - Overfit.png
+│   │   │   │   ├── Step 7.2 - Results.png
+│   │   │   │   ├── Step 7.2 - Training.png
+│   │   │   │   ├── Step 8 - Danceability Training.png
+│   │   │   │   ├── Step 8 - Energy Training.png
+│   │   │   │   ├── Step 8 - Results.png
+│   │   │   │   ├── Step 8 - Valence Training.png
+│   │   │   │   ├── Step 9.1 - Results.png
+│   │   │   │   ├── Step 9.1 - Training.png
+│   │   │   │   ├── Step 9.2 - Results.png
+│   │   │   │   └── Step 9.2 - Training.png
+│   │   │   ├── submission/
+│   │   │   │   ├── patrec2_03121026_03121023_code.py
+│   │   │   │   └── patrec2_03121026_03121023_report.pdf
+│   │   │   ├── 2η Εργαστηριακή Άσκηση.pdf
+│   │   │   ├── patrec2_03121026_03121023_report.docx
+│   │   │   ├── patrec2_03121026_03121023_report.pdf
+│   │   │   └── Αναφορά Πάνου.docx
+│   │   ├── material/
+│   │   │   ├── help_step4.py
+│   │   │   ├── help_step5.py
+│   │   │   ├── help_step6.py
+│   │   │   ├── help_step7.1.py
+│   │   │   ├── help_step7.2.py
+│   │   │   ├── help_step8.py
+│   │   │   └── lab2-data-loading-tutorial.ipynb
+│   │   ├── patrec2_03121026_03121023.ipynb
+│   │   └── patrec2_03121026_03121023.py
+│   └── README.md
 ├── lab_material/
 │   ├── patrec-labs/
 │   │   ├── lab1/
@@ -3388,8 +3394,9 @@ Pattern_Recognition/
 │   │   ├── .gitignore
 │   │   ├── README.md
 │   │   └── spell_checker_test_set
-│   └── README.txt
+│   └── README.md
 ├── project/
+│   ├── README.md
 │   ├── Θέματα Εξαμηνιαίας Εργασίας Αναγνώριση Προτύπων 2025-26.docx
 │   └── Θέματα Εξαμηνιαίας Εργασίας Αναγνώριση Προτύπων 2025-26.pdf
 ├── .gitattributes
@@ -3397,4 +3404,4 @@ Pattern_Recognition/
 ├── LICENSE
 └── README.md
 
-Total directories: 39, Total files: 3359
+Total directories: 41, Total files: 3364

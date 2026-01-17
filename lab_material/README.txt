@@ -1,1 +1,0 @@
-The 2 folders are GitHub repos.
