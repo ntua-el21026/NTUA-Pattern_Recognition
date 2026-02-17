@@ -1,6 +1,8 @@
 Semester Project (Pattern Recognition)
 
 Project repository:
+
+https://github.com/ntua-el21026/NTUA-Llama_500M_Nanotron_Pipeline.git
 ____________________
 
 Selected topic (from the 2025-26 topics list PDF):
