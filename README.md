@@ -42,7 +42,7 @@ These include lab support code and prep notebooks.
 ## project/
 
 Topic list for the semester project (PDF/DOCX) and `project/README.md` with the
-selected topic (SPEC-1) plus a placeholder for the external project repo.
+selected topic (SPEC-1): https://github.com/ntua-el21026/NTUA-Llama_500M_Nanotron_Pipeline.git
 
 ## License
 
