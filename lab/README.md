@@ -54,6 +54,9 @@ The music arrays and trained checkpoints are not included in this repository. Th
 - [michaelpeppas/preparation-dataset](https://www.kaggle.com/datasets/michaelpeppas/preparation-dataset): an additional source referenced by the exported setup; public availability and redistribution rights are not established here.
 - [slp-ntua/patrec-labs](https://github.com/slp-ntua/patrec-labs): `dataset.py`, `lstm.py`, `modules.py` and other course helpers; see [the retained revision](../lab_material/README.md).
 
+The Kaggle links are historical source references; their current availability
+and authorized access must be confirmed independently.
+
 Kaggle is the original execution layout. Attach authorized data there and confirm that the path `../input/patreco3-multitask-affective-music/data/` resolves from the working directory. Expected subdirectories include `fma_genre_spectrograms/`, `fma_genre_spectrograms_beat/` and `multitask_dataset/`, with train/test arrays and the corresponding label files. Later cells also contain absolute `/kaggle/input/` paths. The exported Colab setup uses `kagglehub`, but later path cells do not automatically use its returned download locations; adapt all of them in a separate notebook copy for another environment.
 
 The notebook clones the course repository and adds its `lab3` directory to `sys.path`. Recover the [recorded support-code revision](../lab_material/README.md) before checking compatibility. The files [step8_regression.py](ex2/codex/step8_regression.py), [step9_transfer.py](ex2/codex/step9_transfer.py) and [step10_multitask.py](ex2/codex/step10_multitask.py) depend on preceding notebook globals/backbones and are supplementary experiments, not standalone CLI programs. The directory name and any existing assistance disclosures are preserved.
