@@ -1,72 +1,39 @@
-# Pattern_Recognition
+# NTUA Pattern Recognition coursework
 
-Coursework and team lab assignments from the NTUA ECE Pattern Recognition course
-(student id 03121026).
+Analytical exercises and two audio-learning laboratory assignments from the NTUA School of Electrical and Computer Engineering Pattern Recognition course. The lab submissions credit **Michail-Athanasios Peppas (03121026)** and **Panagiotis Avgerinos (03121023)**. They are team implementations based on course material; individual implementation responsibilities have not been reconstructed from the imported history.
 
-## Repository layout
+## Coursework index
 
-```
-Pattern_Recognition/
-|-- analytical_exercises/   # homework sets, code, plots, results
-|-- docs/                   # bibliography, exam notes, repo structure
-|-- lab/                    # lab exercises (ex1, ex2) with reports and data
-|-- lab_material/           # course-provided GitHub repos
-`-- project/                # semester project topic list + selected topic
-```
+| Work | Implementation and evidence |
+| --- | --- |
+| Spoken-digit recognition | [Lab 1 notebook](lab/ex1/patrec1_03121026_03121023.ipynb), [Python export](lab/ex1/patrec1_03121026_03121023.py), [submitted report](lab/ex1/docs/submission/patrec1_03121026_03121023_report.pdf): speech features, classical classifiers, GMM-HMMs and recurrent networks |
+| Music genre and affect prediction | [Lab 2 notebook](lab/ex2/patrec2_03121026_03121023.ipynb), [Python export](lab/ex2/patrec2_03121026_03121023.py), [submitted report](lab/ex2/docs/submission/patrec2_03121026_03121023_report.pdf): LSTM/CNN/AST classification, regression, transfer and multitask comparisons |
+| Analytical exercises | [Set 1](analytical_exercises/set_1/): HMM Viterbi training, online LMS classification, RNN experiments, original solution, plots and logs. Set 2 was optional under a different exam scheme. |
+| Semester project | [Team 12 LLaMA-style 500M workflow](https://github.com/ntua-el21026/ntua-llama-500m-nanotron) and [companion artifacts](https://github.com/ntua-el21026/ntua-llama-500m-artifacts); topic context is in [project/README.md](project/README.md) |
 
-## analytical_exercises/
+[lab/README.md](lab/README.md) explains the experiments, data locations, evaluation qualifications and rerun prerequisites. [docs/](docs/) retains reference material and exam notes; [lab_material/README.md](lab_material/README.md) identifies the external course-support revisions.
 
-- set_1: assignment statement, solution PDF, and programs (HMM Viterbi training,
-  LMS classification, RNN experiments, plotting scripts, logs/results).
-- set_2: was optional with a different exam scheme.
-
-## lab/
-
-- docs/: report and notebook templates.
-- ex1: notebook and Python script, reports (PDF/DOCX), submission bundle, figures,
-  and the spoken digit dataset (wav files).
-- ex2: notebook and Python script, reports (PDF/DOCX), submission bundle, helper
-  scripts, codex experiments, figures, and a data loading tutorial.
-
-## docs/
-
-- bibliography: papers, notes, and course references (PDF/TXT/Notebook).
-- exam_notes: LaTeX source and compiled PDF.
-- project_structure: script and a captured tree of the repo.
-
-## lab_material/
-
-Reference material pulled from course GitHub repos (patrec-labs and prep-lab).
-These include lab support code and prep notebooks.
-
-## project/
-
-Topic list for the semester project (PDF/DOCX) and `project/README.md` with the
-selected topic (SPEC-1): https://github.com/ntua-el21026/NTUA-Llama_500M_Nanotron_Full
-
-## License
-
-See `LICENSE`.
-
-## Authorship, status and limitations
-
-The lab reports credit Michail-Athanasios Peppas (03121026) and Panagiotis Avgerinos (03121023), submitted on 13 November and 8 December 2025. These are team implementations based on course material. Per-person implementation responsibilities have not been reconstructed from the bulk-import history. The semester LLaMA project is a separate Team 12 artifact linked above.
-
-Lab 1 implements spoken-digit HMM/RNN experiments; Lab 2 studies music genre and affect prediction with LSTM/CNN/AST, including regression, transfer and multitask comparisons. The preserved Lab 1 report's 98.67% test accuracy is specific to its task/split/model-selection protocol. Weak results and notebook outputs remain part of the evidence. No numerical replay or new performance claim accompanies portfolio preparation.
-
-## Setup and reproduction
+## Inspecting and reproducing the labs
 
 ```bash
-GIT_LFS_SKIP_SMUDGE=1 git clone https://github.com/ntua-el21026/NTUA-Pattern_Recognition.git
-cd NTUA-Pattern_Recognition
+git clone https://github.com/ntua-el21026/ntua-pattern-recognition.git
+cd ntua-pattern-recognition
 ```
 
-Open `lab/ex1/patrec1_03121026_03121023.ipynb` or `lab/ex2/patrec2_03121026_03121023.ipynb`; the adjacent `.py` files are notebook exports and may contain Colab setup or notebook-specific assumptions. Inspect setup cells before execution rather than importing exports as a library. Exact resolved dependency versions are not frozen.
+Both submitted notebooks and their recorded outputs are already in Git. A reviewer does not need access to the original personal Colab link or an expired notebook-export URL. Open the repository notebooks for inspection; use a separate working copy for execution.
 
-Lab 1 imports NumPy, pandas, scikit-learn, librosa, matplotlib, pomegranate, PyTorch and tqdm. Lab 2 additionally uses SciPy, timm, kagglehub and course-local dataset/model modules. HMM API versions, audio processing, model downloads and local paths require particular attention. Use the intended managed notebook environment and compatible provider numerical stack; a local PyTorch installation is unnecessary for source review. Record actual packages, hardware, seeds, source/data/model hashes and chronological train/validation/test decisions before a rerun. Keep fresh output separate from the submitted notebooks/reports.
+Lab 1 was prepared for Colab with personal Drive paths. Its preparatory speech corpus and 3,000-file Free Spoken Digit Dataset are bundled, but the path cells must be adapted in the working copy. Lab 2 targets Kaggle and requires externally obtained music data plus the course's `lab3` helper modules. The repository stores course-support Git commit references without a `.gitmodules` file; ordinary submodule initialization does not retrieve them. See the [support-code instructions](lab_material/README.md).
 
-## Conditional public release and third-party terms
+There is no consolidated environment lock or automated numerical test suite. The notebooks use NumPy, pandas, scikit-learn, librosa, matplotlib, PyTorch and tqdm; HMM work uses pomegranate, while the music work additionally uses SciPy, timm, kagglehub and course modules. Notebook setup cells contain installs and downloads. Review them against the managed runtime before running anything. The `.py` exports retain notebook syntax and are not installable libraries or ordinary command-line entry points.
 
-This remains a conditional public portfolio candidate. Both laboratory assignment PDFs in `lab/ex1/docs/` and `lab/ex2/docs/` prohibit publishing laboratory solutions on GitHub or other websites. The analytical assignment statements also prohibit posting solutions on any platform and identify teaching-team intellectual property. Original notices, solutions and outputs remain intact. An applicable documented permission is required for a public release containing the restricted solutions. This preparation contacted no instructors and removed no coursework to bypass those terms.
+## Experimental status
 
-The bundled Free Spoken Digit Dataset identifies CC BY-SA 4.0 in its own README. Retain that attribution/license and review applicable sharing obligations; root MIT is not its sole license. Course repositories, handouts, books, papers, pretrained models and tutorial notebooks need separate provenance/rights review. Root MIT applies to original contributions only within the contributors' rights. Public-first curation can use original explanatory writing and independently reusable source whose rights are established, while excluding restricted solutions, course prompts/starters and third-party datasets. The current local evidence copy supports that review without altering historical outputs.
+The reports and outputs are preserved coursework evidence, including weak results. Lab 1's reported 98.67% test accuracy belongs to its recorded experiment and selection procedure. Its final HMM code can retrain a digit after observing zero test accuracy, so that result should not be presented as an untouched-test estimate without that qualification. Music classification reports accuracy and class-wise metrics; affect prediction uses MSE and Spearman correlation. Splits and model-selection details differ between experiments.
+
+Documentation validation inspected notebook structure, paths, helper references and evidence links. No training, numerical replay or new performance measurement was performed. Reproduction requires recovering compatible dependencies, data/model versions and the original protocol; preserve submitted notebooks and write fresh results separately.
+
+## Authorship and reuse
+
+The [root MIT license](LICENSE) covers original contributions within the contributors' rights. Course handouts, starter repositories, papers, books, tutorial notebooks, pretrained models and datasets have separate terms. The bundled [Free Spoken Digit Dataset notice](lab/ex1/material/free-spoken-digit-dataset/README.md#license) identifies **CC BY-SA 4.0**, which must be retained.
+
+The laboratory assignment PDFs under `lab/ex1/docs/` and `lab/ex2/docs/` prohibit publishing solutions on GitHub or other websites. Analytical assignment statements also restrict posting solutions and identify teaching-team intellectual property. Those notices remain intact; an applicable documented permission is required for public distribution of restricted material. No permission is inferred from the root license or the repository's current visibility. Existing authorship, assistance disclosures and submitted evidence are preserved.
