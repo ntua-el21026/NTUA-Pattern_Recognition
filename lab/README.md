@@ -1,6 +1,6 @@
 # Audio-learning laboratory work
 
-The notebooks are the primary executable narratives; their Python exports and PDF reports retain the original submissions. The two-person team is Michail-Athanasios Peppas (03121026) and Panagiotis Avgerinos (03121023). Templates are in [docs/](docs/).
+The notebooks are the primary executable narratives; their Python exports and PDF reports retain the original submissions. The two-person team is Michail Athanasios Peppas (03121026) and Panagiotis Avgerinos (03121023). Templates are in [docs/](docs/).
 
 ## Lab 1: speech features and spoken digits
 

@@ -1,6 +1,6 @@
 # NTUA Pattern Recognition coursework
 
-Analytical exercises and two audio-learning laboratory assignments from the NTUA School of Electrical and Computer Engineering Pattern Recognition course. The lab submissions credit **Michail-Athanasios Peppas (03121026)** and **Panagiotis Avgerinos (03121023)**. They are team implementations based on course material.
+Analytical exercises and two audio-learning laboratory assignments from the NTUA School of Electrical and Computer Engineering Pattern Recognition course. The lab submissions credit **Michail Athanasios Peppas (03121026)** and **Panagiotis Avgerinos (03121023)**. They are team implementations based on course material.
 
 ## Coursework index
 
