@@ -51,13 +51,10 @@ The music arrays and trained checkpoints are not included in this repository. Th
 
 - [geoparslp/patreco3-multitask-affective-music](https://www.kaggle.com/datasets/geoparslp/patreco3-multitask-affective-music): prepared music arrays and labels.
 - [multitask-affective-music-lab-2022](https://www.kaggle.com/competitions/multitask-affective-music-lab-2022): competition source, subject to its access/participation requirements.
-- [michaelpeppas/preparation-dataset](https://www.kaggle.com/datasets/michaelpeppas/preparation-dataset): an additional source referenced by the exported setup; public availability and redistribution rights are not established here.
+- [michaelpeppas/preparation-dataset](https://www.kaggle.com/datasets/michaelpeppas/preparation-dataset): an additional source referenced by the exported setup.
 - [slp-ntua/patrec-labs](https://github.com/slp-ntua/patrec-labs): `dataset.py`, `lstm.py`, `modules.py` and other course helpers; see [the retained revision](../lab_material/README.md).
 
-The Kaggle links are historical source references; their current availability
-and authorized access must be confirmed independently.
-
-Kaggle is the original execution layout. Attach authorized data there and confirm that the path `../input/patreco3-multitask-affective-music/data/` resolves from the working directory. Expected subdirectories include `fma_genre_spectrograms/`, `fma_genre_spectrograms_beat/` and `multitask_dataset/`, with train/test arrays and the corresponding label files. Later cells also contain absolute `/kaggle/input/` paths. The exported Colab setup uses `kagglehub`, but later path cells do not automatically use its returned download locations; adapt all of them in a separate notebook copy for another environment.
+Kaggle is the original execution layout. Attach the required data there and confirm that the path `../input/patreco3-multitask-affective-music/data/` resolves from the working directory. Expected subdirectories include `fma_genre_spectrograms/`, `fma_genre_spectrograms_beat/` and `multitask_dataset/`, with train/test arrays and the corresponding label files. Later cells also contain absolute `/kaggle/input/` paths. The exported Colab setup uses `kagglehub`, but later path cells do not automatically use its returned download locations; adapt all of them in a separate notebook copy for another environment.
 
 The notebook clones the course repository and adds its `lab3` directory to `sys.path`. Recover the [recorded support-code revision](../lab_material/README.md) before checking compatibility. The files [step8_regression.py](ex2/codex/step8_regression.py), [step9_transfer.py](ex2/codex/step9_transfer.py) and [step10_multitask.py](ex2/codex/step10_multitask.py) depend on preceding notebook globals/backbones and are supplementary experiments, not standalone CLI programs. The directory name and any existing assistance disclosures are preserved.
 
@@ -65,4 +62,4 @@ The notebook clones the course repository and adds its `lab3` directory to `sys.
 
 Original figures and submission files remain under each exercise's `docs/`; no source notebook, output or report was rewritten for portability. The old Colab link and signed Kaggle export URL in the Python headers are historical source locations. The committed notebooks provide review access without either link.
 
-Before a rerun, record the source commit, exact packages and managed runtime, hardware, seeds, data/helper/pretrained-model revisions and hashes, split definitions and checkpoint-selection rule. Store new checkpoints/results separately and label them as new observations. This documentation pass performed static inspection only; it did not obtain the restricted music inputs or validate numerical results.
+Before a rerun, record the source commit, exact packages and managed runtime, hardware, seeds, data/helper/pretrained-model revisions and hashes, split definitions and checkpoint-selection rule. Store new checkpoints/results separately and label them as new observations.
